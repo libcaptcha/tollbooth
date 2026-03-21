@@ -1,0 +1,28 @@
+[project]
+name = "tollbooth"
+version = "0.1.0"
+description = "Proof-of-work bot challenge middleware"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-asyncio", "httpx"]
+django = ["django>=4.0"]
+flask = ["flask>=2.0"]
+fastapi = ["fastapi>=0.100"]
+starlette = ["starlette>=0.27"]
+falcon = ["falcon>=3.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["tollbooth*"]
+
+[tool.setuptools.package-data]
+tollbooth = ["rules.json", "challenge.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
