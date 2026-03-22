@@ -1,8 +1,9 @@
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 
-from ..engine import _CHALLENGE_HEADERS, Engine
+from ..engine import _CHALLENGE_HEADERS, Engine, _safe_redirect
 
 _JSON_CT = {
     "Content-Type": "application/json",
@@ -33,7 +34,7 @@ class TollboothBase:
         *,
         engine: Engine | None = None,
         exclude: list[str] | None = None,
-        json_mode: bool = False,
+        json_mode: bool | Callable[[dict], bool] = False,
         **engine_kwargs,
     ):
         if engine:
@@ -46,7 +47,12 @@ class TollboothBase:
         else:
             raise ValueError("secret or engine required")
         self._excludes = [re.compile(p) for p in (exclude or [])]
-        self.json_mode = json_mode
+        self._json_mode = json_mode
+
+    def _is_json(self, request):
+        if callable(self._json_mode):
+            return self._json_mode(request)
+        return self._json_mode
 
     @property
     def verify_path(self):
@@ -84,13 +90,16 @@ class TollboothBase:
 
         if action == "allow":
             return None
+
+        use_json = self._is_json(request)
+
         if action == "deny":
-            return self._deny()
+            return self._deny(use_json)
 
-        return self._challenge(difficulty, request)
+        return self._challenge(difficulty, request, use_json)
 
-    def _deny(self):
-        if self.json_mode:
+    def _deny(self, use_json):
+        if use_json:
             return Response(
                 403,
                 dict(_JSON_CT),
@@ -102,14 +111,14 @@ class TollboothBase:
             "Forbidden",
         )
 
-    def _challenge(self, difficulty, request):
+    def _challenge(self, difficulty, request, use_json):
         challenge = self.engine.issue_challenge(
             difficulty,
             request,
         )
         path = request["path"]
 
-        if self.json_mode:
+        if use_json:
             p = self.engine.policy
             body = json.dumps(
                 {
@@ -144,8 +153,9 @@ class TollboothBase:
             form.get("nonce", ""),
             request,
         )
+        use_json = self._is_json(request)
 
-        if self.json_mode:
+        if use_json:
             if not token:
                 return Response(
                     403,
@@ -165,15 +175,7 @@ class TollboothBase:
                 "Invalid",
             )
 
-        redirect = form.get("redirect", "/")
-        if (
-            not redirect.startswith("/")
-            or redirect.startswith("//")
-            or redirect.startswith("/\\")
-            or "\n" in redirect
-            or "\r" in redirect
-        ):
-            redirect = "/"
+        redirect = _safe_redirect(form.get("redirect", "/"))
 
         p = self.engine.policy
         cookie_val = (

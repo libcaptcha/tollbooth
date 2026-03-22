@@ -25,16 +25,7 @@ class RedisStore:
         remaining = max(1, int(self._ttl - elapsed))
         self._r.set(
             self._key(challenge.id),
-            json.dumps(
-                {
-                    "id": challenge.id,
-                    "random_data": challenge.random_data,
-                    "difficulty": challenge.difficulty,
-                    "ip_hash": challenge.ip_hash,
-                    "created_at": challenge.created_at,
-                    "spent": challenge.spent,
-                }
-            ),
+            json.dumps(asdict(challenge)),
             ex=remaining,
         )
 
@@ -97,7 +88,7 @@ class RedisEngine(Engine):
         self._r.set(self._rkey("config"), json.dumps(cfg))
         self._r.set(
             self._rkey("rules"),
-            json.dumps([asdict(r, dict_factory=dict) for r in self.policy.rules]),
+            json.dumps([asdict(r) for r in self.policy.rules]),
         )
 
     def _pull_config(self):

@@ -162,13 +162,14 @@ class Store:
             del self._data[k]
 
     def _evict_oldest(self):
-        if len(self._data) < self._max_size:
+        excess = len(self._data) - self._max_size + 1
+        if excess <= 0:
             return
         oldest = sorted(
             self._data,
             key=lambda k: self._data[k].created_at,
-        )
-        for k in oldest[: len(self._data) - self._max_size + 1]:
+        )[:excess]
+        for k in oldest:
             del self._data[k]
 
     def set(self, challenge: Challenge):
@@ -189,12 +190,8 @@ class Rule:
     action: str = "weigh"
     user_agent: str | None = None
     path: str | None = None
-    headers: dict[str, str] = field(
-        default_factory=dict,
-    )
-    remote_addresses: list[str] = field(
-        default_factory=list,
-    )
+    headers: dict[str, str] = field(default_factory=dict)
+    remote_addresses: list[str] = field(default_factory=list)
     difficulty: int = 0
     weight: int = 0
     blocklist: bool = False
@@ -292,6 +289,18 @@ def load_policy(config=None, rules=None) -> Policy:
     )
 
 
+def _safe_redirect(redirect: str) -> str:
+    if (
+        not redirect.startswith("/")
+        or redirect.startswith("//")
+        or redirect.startswith("/\\")
+        or "\n" in redirect
+        or "\r" in redirect
+    ):
+        return "/"
+    return redirect
+
+
 _CSP = (
     "default-src 'none'; "
     "script-src 'unsafe-inline'; "
@@ -387,7 +396,7 @@ class Engine:
             self.policy.delta,
         )
 
-        if _count_leading_zero_bits(result) < (challenge.difficulty):
+        if _count_leading_zero_bits(result) < challenge.difficulty:
             return None
 
         challenge.spent = True
@@ -500,15 +509,7 @@ class Engine:
                 "Invalid",
             )
 
-        redirect = form.get("redirect", "/")
-        if (
-            not redirect.startswith("/")
-            or redirect.startswith("//")
-            or redirect.startswith("/\\")
-            or "\n" in redirect
-            or "\r" in redirect
-        ):
-            redirect = "/"
+        redirect = _safe_redirect(form.get("redirect", "/"))
 
         cookie = (
             f"{self.policy.cookie_name}={token}; "

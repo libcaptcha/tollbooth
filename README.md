@@ -454,7 +454,20 @@ tb = TollboothBase(
 
 ### JSON mode
 
-For API/SPA backends, enable `json_mode=True`. Challenges return JSON instead of HTML:
+For API/SPA backends, `json_mode` controls whether challenges return JSON instead of HTML. It accepts a `bool` or a callable `(request) -> bool` for per-request control:
+
+```python
+# all routes return JSON
+TollboothBase(secret="key", json_mode=True)
+
+# only /api/* routes return JSON
+TollboothBase(
+    secret="key",
+    json_mode=lambda req: req["path"].startswith("/api/"),
+)
+```
+
+JSON challenge response:
 
 ```json
 {

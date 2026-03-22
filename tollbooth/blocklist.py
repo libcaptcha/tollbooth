@@ -82,10 +82,10 @@ class IPBlocklist:
     def load(self, source=BLOCKLIST_URL):
         text = _load_text(source)
         v4, v6 = parse_blocklist(text)
-        self._v4_starts = [r[0] for r in v4]
-        self._v4_ends = [r[1] for r in v4]
-        self._v6_starts = [r[0] for r in v6]
-        self._v6_ends = [r[1] for r in v6]
+        s4, e4 = zip(*v4) if v4 else ([], [])
+        s6, e6 = zip(*v6) if v6 else ([], [])
+        self._v4_starts, self._v4_ends = list(s4), list(e4)
+        self._v6_starts, self._v6_ends = list(s6), list(e6)
 
     def contains(self, ip):
         try:
