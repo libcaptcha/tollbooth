@@ -20,11 +20,11 @@ Bots get a browser challenge page. Humans solve it once, get a cookie, browse fr
 
 **ImageCaptcha() Solution: `NWGT5V`**
 
-![Image CAPTCHA challenge page](https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/image-captcha.webp)
+<img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/image-captcha.webp" alt="Image CAPTCHA challenge page" width="400">
 
 **SHA256Balloon() `Default`**
 
-![SHA256-Balloon challenge page](https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256.webp)
+<img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256.webp" alt="SHA256 challenge page" width="400">
 
 ## Contents
 
