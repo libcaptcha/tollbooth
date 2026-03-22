@@ -1,6 +1,6 @@
 [project]
 name = "tollbooth"
-version = "0.1.5"
+version = "0.1.6"
 description = "Proof-of-work bot challenge middleware for Python. Zero dependencies."
 readme = "README.md"
 license = { text = "MIT" }
@@ -34,7 +34,6 @@ test = ["pytest", "pytest-asyncio", "httpx"]
 django = ["django>=4.0"]
 flask = ["flask>=2.0"]
 fastapi = ["fastapi>=0.100"]
-starlette = ["starlette>=0.27"]
 falcon = ["falcon>=3.0"]
 redis = ["redis>=5.0"]
 

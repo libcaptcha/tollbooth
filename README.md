@@ -18,15 +18,15 @@ Bots get a browser challenge page. Humans solve it once, get a cookie, browse fr
 
 ## Why tollbooth over [Anubis](https://github.com/TecharoHQ/anubis)?
 
-|                   | tollbooth                                 | Anubis                                                                                                          |
-| ----------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **Language**      | Python (drop-in middleware)               | Go (standalone reverse proxy)                                                                                   |
-| **Dependencies**  | 0                                         | [31 direct, ~160 transitive](https://github.com/TecharoHQ/anubis/blob/main/go.mod#L3-L203)                      |
-| **Code size**     | ~800 lines                                | ~10,000 lines                                                                                                   |
-| **Integration**   | `app.add_middleware(...)`                 | Separate process + reverse proxy                                                                                |
-| **PoW algorithm** | Balloon hashing (memory-hard)             | [Plain SHA-256](https://github.com/TecharoHQ/anubis/blob/main/lib/challenge/proofofwork/proofofwork.go#L35-L85) |
-| **Rules format**  | JSON                                      | [YAML + CEL expressions](https://github.com/TecharoHQ/anubis/blob/main/lib/config/config.go#L58-L73)            |
-| **Frameworks**    | Flask, Django, FastAPI, Starlette, Falcon | None (reverse proxy only)                                                                                       |
+|                   | tollbooth                      | Anubis                                                                                                          |
+| ----------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| **Language**      | Python (drop-in middleware)    | Go (standalone reverse proxy)                                                                                   |
+| **Dependencies**  | 0                              | [31 direct, ~160 transitive](https://github.com/TecharoHQ/anubis/blob/main/go.mod#L3-L203)                      |
+| **Code size**     | ~800 lines                     | ~10,000 lines                                                                                                   |
+| **Integration**   | `app.add_middleware(...)`      | Separate process + reverse proxy                                                                                |
+| **PoW algorithm** | Balloon hashing (memory-hard)  | [Plain SHA-256](https://github.com/TecharoHQ/anubis/blob/main/lib/challenge/proofofwork/proofofwork.go#L35-L85) |
+| **Rules format**  | JSON                           | [YAML + CEL expressions](https://github.com/TecharoHQ/anubis/blob/main/lib/config/config.go#L58-L73)            |
+| **Frameworks**    | Flask, Django, FastAPI, Falcon | None (reverse proxy only)                                                                                       |
 
 ### Security: memory-hard PoW
 
@@ -72,7 +72,6 @@ With framework extras:
 pip install tollbooth[flask]
 pip install tollbooth[django]
 pip install tollbooth[fastapi]
-pip install tollbooth[starlette]
 pip install tollbooth[falcon]
 ```
 
@@ -183,14 +182,14 @@ def protected():
     return {"ok": True}
 ```
 
-### Starlette
+## Starlette
 
 ```python
 from starlette.applications import Starlette
-from tollbooth.integrations.starlette import TollboothMiddleware
+from tollbooth import TollboothASGI
 
 app = Starlette()
-app.add_middleware(TollboothMiddleware, secret="your-secret-key")
+app.add_middleware(TollboothASGI, secret="your-secret-key")
 ```
 
 ### Falcon
@@ -442,15 +441,14 @@ tb = TollboothBase(
 )
 ```
 
-| Integration   | Middleware class      | Per-route            | Exempt decorator    |
-| ------------- | --------------------- | -------------------- | ------------------- |
-| **Flask**     | `Tollbooth(app)`      | `@tb.protect`        | `@tb.exempt`        |
-| **Django**    | `TollboothMiddleware` | `@tollbooth_protect` | `@tollbooth_exempt` |
-| **FastAPI**   | `TollboothMiddleware` | `TollboothDep`       | `exclude=[...]`     |
-| **Starlette** | `TollboothMiddleware` | —                    | `exclude=[...]`     |
-| **Falcon**    | `TollboothMiddleware` | `tollbooth_hook`     | `exclude=[...]`     |
-| **WSGI**      | `TollboothWSGI`       | —                    | —                   |
-| **ASGI**      | `TollboothASGI`       | —                    | —                   |
+| Integration | Middleware class      | Per-route            | Exempt decorator    |
+| ----------- | --------------------- | -------------------- | ------------------- |
+| **Flask**   | `Tollbooth(app)`      | `@tb.protect`        | `@tb.exempt`        |
+| **Django**  | `TollboothMiddleware` | `@tollbooth_protect` | `@tollbooth_exempt` |
+| **FastAPI** | `TollboothMiddleware` | `TollboothDep`       | `exclude=[...]`     |
+| **Falcon**  | `TollboothMiddleware` | `tollbooth_hook`     | `exclude=[...]`     |
+| **WSGI**    | `TollboothWSGI`       | —                    | —                   |
+| **ASGI**    | `TollboothASGI`       | —                    | —                   |
 
 ### JSON mode
 
@@ -496,7 +494,7 @@ Framework integration tests and Redis tests are skipped automatically if the req
 To run all tests:
 
 ```bash
-pip install tollbooth[test,flask,django,fastapi,starlette,falcon,redis]
+pip install tollbooth[test,flask,django,fastapi,falcon,redis]
 pytest tests/ -v
 ```
 

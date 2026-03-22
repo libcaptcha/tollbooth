@@ -1,13 +1,12 @@
 import json
 
-from starlette.requests import Request
+from fastapi import Request
 
-from ..middleware import _parse_scope
+from ..middleware import TollboothASGI, _parse_scope
 from .base import resolve_base
-from .starlette import TollboothMiddleware as _StarletteMiddleware
 
 
-class TollboothMiddleware(_StarletteMiddleware):
+class TollboothMiddleware(TollboothASGI):
     def __init__(self, app, secret, **kwargs):
         kwargs.setdefault("json_mode", True)
         super().__init__(app, secret, **kwargs)
