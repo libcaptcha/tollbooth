@@ -189,7 +189,7 @@ from starlette.applications import Starlette
 from tollbooth import TollboothASGI
 
 app = Starlette()
-app.add_middleware(TollboothASGI, secret="your-secret-key")
+app = TollboothASGI(app, secret="your-secret-key")
 ```
 
 ### Falcon
