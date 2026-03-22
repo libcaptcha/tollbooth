@@ -39,8 +39,7 @@ pip install tollbooth[redis]     # Redis backend
      │◄─────────────────────────────────│
      │  429  ┌──────────────────────┐   │
      │       │  Checking your       │   │
-     │       │  browser…            │   │
-     │       │  ████████░░  72 H/s  │   │
+     │       │  browser… 72 H/s     │   │
      │       └──────────────────────┘   │
      │                                  │
      │  Web Workers compute             │

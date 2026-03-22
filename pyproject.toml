@@ -3,14 +3,13 @@ name = "tollbooth"
 version = "0.1.8"
 description = "Proof-of-work bot challenge middleware for Python. Zero dependencies."
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = []
 keywords = ["bot", "captcha", "proof-of-work", "middleware", "rate-limiting", "challenge", "balloon-hashing", "wsgi", "asgi"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
