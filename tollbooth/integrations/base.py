@@ -155,28 +155,29 @@ class TollboothBase:
         )
         use_json = self._is_json(request)
 
-        if use_json:
-            if not token:
+        if not token:
+            if use_json:
                 return Response(
                     403,
                     dict(_JSON_CT),
                     '{"error":"invalid"}',
                 )
             return Response(
-                200,
-                dict(_JSON_CT),
-                json.dumps({"token": token}),
-            )
-
-        if not token:
-            return Response(
                 403,
                 {"Content-Type": "text/plain"},
                 "Invalid",
             )
 
-        redirect = _safe_redirect(form.get("redirect", "/"))
+        if use_json:
+            return Response(
+                200,
+                dict(_JSON_CT),
+                json.dumps({"token": token}),
+            )
 
+        redirect = _safe_redirect(
+            form.get("redirect", "/"),
+        )
         p = self.engine.policy
         cookie_val = (
             f"{p.cookie_name}={token}; "

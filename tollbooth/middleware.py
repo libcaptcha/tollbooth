@@ -2,7 +2,8 @@ import http.cookies
 from typing import Any
 from urllib.parse import parse_qs
 
-from .engine import VERIFY_PATH, Engine, Request
+from .engine import VERIFY_PATH, Request
+from .integrations.base import Response, TollboothBase
 
 __all__ = [
     "VERIFY_PATH",
@@ -29,10 +30,7 @@ def parse_cookies(raw: str) -> dict[str, str]:
         return {}
 
 
-def _remote_addr(
-    forwarded: str,
-    fallback: str,
-) -> str:
+def _remote_addr(forwarded: str, fallback: str) -> str:
     if forwarded:
         return forwarded.split(",")[0].strip()
     return fallback
@@ -62,85 +60,42 @@ def parse_wsgi_request(
                 int(environ.get("CONTENT_LENGTH", 0)),
                 1_048_576,
             )
-            form = _parse_form(environ["wsgi.input"].read(length))
+            form = _parse_form(
+                environ["wsgi.input"].read(length),
+            )
         except (ValueError, KeyError):
             pass
 
     return {
-        "method": str(environ.get("REQUEST_METHOD", "GET")),
+        "method": str(
+            environ.get("REQUEST_METHOD", "GET"),
+        ),
         "path": str(environ.get("PATH_INFO", "/")),
         "query": str(environ.get("QUERY_STRING", "")),
-        "user_agent": str(environ.get("HTTP_USER_AGENT", "")),
+        "user_agent": str(
+            environ.get("HTTP_USER_AGENT", ""),
+        ),
         "remote_addr": _remote_addr(
-            str(environ.get("HTTP_X_FORWARDED_FOR", "")),
+            str(
+                environ.get("HTTP_X_FORWARDED_FOR", ""),
+            ),
             str(environ.get("REMOTE_ADDR", "")),
         ),
         "headers": headers,
-        "cookies": parse_cookies(str(environ.get("HTTP_COOKIE", ""))),
+        "cookies": parse_cookies(
+            str(environ.get("HTTP_COOKIE", "")),
+        ),
         "form": form,
     }
 
 
-def _is_verify(request: Request, path: str) -> bool:
-    return request["method"] == "POST" and request["path"] == path
-
-
-class TollboothWSGI:
-    def __init__(self, app, secret, **kwargs):
-        self.app = app
-        self.engine = Engine(secret=secret, **kwargs)
-
-    def _respond(self, start_response, status, headers):
-        start_response(
-            _status_line(status),
-            list(headers.items()),
-        )
-
-    def __call__(self, environ, start_response):
-        request = parse_wsgi_request(environ)
-        verify = self.engine.policy.verify_path
-
-        if _is_verify(request, verify):
-            status, headers, body = self.engine.handle_verify(request)
-            self._respond(
-                start_response,
-                status,
-                headers,
-            )
-            return [body.encode() if body else b""]
-
-        action, status, headers, body = self.engine.process(request)
-
-        if action == "pass":
-            return list(self.app(environ, start_response))
-
-        self._respond(start_response, status, headers)
-        return [body.encode()]
-
-
-async def _parse_asgi_request(
-    scope: dict[str, Any],
-    receive,
-) -> Request:
-    raw_headers = scope.get("headers", [])
-    headers = {k.decode(): v.decode() for k, v in raw_headers}
+def _parse_scope(scope: dict[str, Any]) -> Request:
+    raw = scope.get("headers", [])
+    headers = {k.decode(): v.decode() for k, v in raw}
     client = scope.get("client")
-
-    form: dict[str, str] = {}
-    if scope.get("method") == "POST":
-        body = b""
-        while True:
-            msg = await receive()
-            body += msg.get("body", b"")
-            if len(body) > 1_048_576:
-                break
-            if not msg.get("more_body", False):
-                break
-        form = _parse_form(body[:1_048_576])
-
     return {
-        "method": str(scope.get("method", "GET")),
-        "path": str(scope.get("path", "/")),
+        "method": scope.get("method", "GET"),
+        "path": scope.get("path", "/"),
         "query": (scope.get("query_string", b"").decode()),
         "user_agent": headers.get("user-agent", ""),
         "remote_addr": _remote_addr(
@@ -148,68 +103,98 @@ async def _parse_asgi_request(
             client[0] if client else "",
         ),
         "headers": headers,
-        "cookies": parse_cookies(headers.get("cookie", "")),
-        "form": form,
+        "cookies": parse_cookies(
+            headers.get("cookie", ""),
+        ),
+        "form": {},
     }
 
 
-async def _send_response(
-    send,
-    status,
-    headers,
-    body,
-):
+async def _read_body(receive) -> bytes:
+    body = b""
+    while True:
+        msg = await receive()
+        body += msg.get("body", b"")
+        if len(body) > 1_048_576 or not msg.get("more_body", False):
+            break
+    return body[:1_048_576]
+
+
+async def _asgi_respond(send, result: Response):
     await send(
         {
             "type": "http.response.start",
-            "status": status,
-            "headers": [[k.encode(), v.encode()] for k, v in headers.items()],
+            "status": result.status,
+            "headers": [[k.encode(), v.encode()] for k, v in result.headers.items()],
         }
     )
-
     await send(
         {
             "type": "http.response.body",
-            "body": body.encode() if body else b"",
+            "body": (result.body.encode() if result.body else b""),
         }
     )
+
+
+class TollboothWSGI:
+    def __init__(self, app, secret, **kwargs):
+        self.app = app
+        self._tb = TollboothBase(
+            secret=secret,
+            **kwargs,
+        )
+
+    @property
+    def engine(self):
+        return self._tb.engine
+
+    def __call__(self, environ, start_response):
+        request = parse_wsgi_request(environ)
+        result = self._tb.process_request(request)
+
+        if not result:
+            return list(
+                self.app(environ, start_response),
+            )
+
+        start_response(
+            _status_line(result.status),
+            list(result.headers.items()),
+        )
+        return [result.body.encode() if result.body else b""]
 
 
 class TollboothASGI:
     def __init__(self, app, secret, **kwargs):
         self.app = app
-        self.engine = Engine(secret=secret, **kwargs)
+        self._tb = TollboothBase(
+            secret=secret,
+            **kwargs,
+        )
+
+    @property
+    def engine(self):
+        return self._tb.engine
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        request = await _parse_asgi_request(
-            scope,
-            receive,
-        )
-        verify = self.engine.policy.verify_path
+        request = _parse_scope(scope)
 
-        if _is_verify(request, verify):
-            status, headers, body = self.engine.handle_verify(request)
-            await _send_response(
-                send,
-                status,
-                headers,
-                body,
+        if self._tb.is_verify(
+            request["method"],
+            request["path"],
+        ):
+            request["form"] = _parse_form(
+                await _read_body(receive),
             )
-            return
 
-        action, status, headers, body = self.engine.process(request)
+        result = self._tb.process_request(request)
 
-        if action == "pass":
+        if not result:
             await self.app(scope, receive, send)
             return
 
-        await _send_response(
-            send,
-            status,
-            headers,
-            body,
-        )
+        await _asgi_respond(send, result)
