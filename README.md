@@ -19,10 +19,12 @@ Bots get a browser challenge page. Humans solve it once, get a cookie, browse fr
 ## Screenshots
 
 **ImageCaptcha() Solution: `NWGT5V`**
+
 ![Image CAPTCHA challenge page](https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/image-captcha.webp)
 
 **SHA256Balloon() `Default`**
-![SHA256-Balloon challenge page](https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256-balloon.webp)
+
+![SHA256-Balloon challenge page](https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256.webp)
 
 ## Contents
 
