@@ -2,7 +2,7 @@
 
 # tollbooth
 
-Proof-of-work bot challenge middleware for Python. Zero dependencies.
+A bot-challenge Python middleware issuing brief browser or human challenges, granting solvers signed access cookies.
 
 </div>
 
