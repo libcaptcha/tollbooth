@@ -2,7 +2,7 @@
 
 # tollbooth
 
-A bot-challenge Python middleware issuing brief browser or human challenges, granting solvers signed access cookies.
+A bot-challenge Python middleware issuing brief challenges, granting solvers signed access cookies.
 
 </div>
 
