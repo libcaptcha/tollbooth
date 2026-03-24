@@ -1,9 +1,9 @@
 import http.cookies
-from typing import Any
+from typing import Any, Unpack
 from urllib.parse import parse_qs
 
 from .engine import VERIFY_PATH, Request
-from .integrations.base import Response, TollboothBase
+from .integrations.base import Response, TollboothBase, TollboothKwargs
 
 __all__ = [
     "VERIFY_PATH",
@@ -137,7 +137,7 @@ async def _asgi_respond(send, result: Response):
 
 
 class TollboothWSGI:
-    def __init__(self, app, secret, **kwargs):
+    def __init__(self, app, secret, **kwargs: Unpack[TollboothKwargs]):
         self.app = app
         self._tb = TollboothBase(
             secret=secret,
@@ -165,7 +165,7 @@ class TollboothWSGI:
 
 
 class TollboothASGI:
-    def __init__(self, app, secret, **kwargs):
+    def __init__(self, app, secret, **kwargs: Unpack[TollboothKwargs]):
         self.app = app
         self._tb = TollboothBase(
             secret=secret,

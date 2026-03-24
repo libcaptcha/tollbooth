@@ -2,8 +2,16 @@ import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Unpack
 
-from ..engine import _CHALLENGE_HEADERS, Engine, _safe_redirect
+from ..engine import _CHALLENGE_HEADERS, Engine, EngineKwargs, _safe_redirect
+
+
+class TollboothKwargs(EngineKwargs, total=False):
+    engine: Engine | None
+    exclude: list[str] | None
+    json_mode: bool | Callable[[dict], bool]
+
 
 _JSON_CT = {
     "Content-Type": "application/json",
@@ -18,7 +26,7 @@ class Response:
     body: str
 
 
-def resolve_base(tb_or_secret, kwargs):
+def resolve_base(tb_or_secret, kwargs: TollboothKwargs):
     if isinstance(tb_or_secret, TollboothBase):
         return tb_or_secret
     return TollboothBase(
@@ -35,7 +43,7 @@ class TollboothBase:
         engine: Engine | None = None,
         exclude: list[str] | None = None,
         json_mode: bool | Callable[[dict], bool] = False,
-        **engine_kwargs,
+        **engine_kwargs: Unpack[EngineKwargs],
     ):
         if engine:
             self.engine = engine
@@ -112,10 +120,17 @@ class TollboothBase:
         )
 
     def _challenge(self, difficulty, request, use_json):
-        challenge = self.engine.issue_challenge(
-            difficulty,
-            request,
-        )
+        ip_hash = self.engine._hash_ip(request["remote_addr"])
+        if not self.engine._rate_limiter.hit(
+            f"gen:{ip_hash}",
+            self.engine.policy.max_challenge_requests,
+            self.engine.policy.rate_limit_window,
+        ):
+            if use_json:
+                return Response(403, dict(_JSON_CT), '{"error":"too many requests"}')
+            return Response(403, {"Content-Type": "text/plain"}, "Too Many Requests")
+
+        challenge = self.engine.issue_challenge(difficulty, request)
         path = request["path"]
 
         if use_json:
@@ -144,6 +159,20 @@ class TollboothBase:
         use_json = self._is_json(request)
 
         if not token:
+            ip_hash = self.engine._hash_ip(request["remote_addr"])
+            if not self.engine._rate_limiter.hit(
+                f"fail:{ip_hash}",
+                self.engine.policy.max_challenge_failures,
+                self.engine.policy.rate_limit_window,
+            ):
+                if use_json:
+                    return Response(
+                        403, dict(_JSON_CT), '{"error":"too many requests"}'
+                    )
+                return Response(
+                    403, {"Content-Type": "text/plain"}, "Too Many Requests"
+                )
+
             if use_json:
                 return Response(403, dict(_JSON_CT), '{"error":"invalid"}')
             if self.engine.policy.challenge_handler.retry_on_failure:

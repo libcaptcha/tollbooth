@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
-from typing import TypedDict
+from typing import TypedDict, Unpack
 
 from .challenges import ChallengeBase, ChallengeHandler, SHA256Balloon
 
@@ -118,6 +118,24 @@ class Store:
             return self._data.get(cid)
 
 
+class RateLimiter:
+    def __init__(self):
+        self._data: dict[str, list[float]] = {}
+        self._lock = Lock()
+
+    def hit(self, key: str, limit: int, window: int) -> bool:
+        now = time.time()
+        cutoff = now - window
+        with self._lock:
+            hits = [t for t in self._data.get(key, []) if t > cutoff]
+            if len(hits) >= limit:
+                self._data[key] = hits
+                return False
+            hits.append(now)
+            self._data[key] = hits
+            return True
+
+
 @dataclass
 class Rule:
     name: str
@@ -181,6 +199,9 @@ class Policy:
     cookie_ttl: int = COOKIE_TTL
     branding: bool = True
     accent_color: str = "#44ff88"
+    max_challenge_failures: int = 3
+    max_challenge_requests: int = 10
+    rate_limit_window: int = 300
 
     def evaluate(
         self,
@@ -251,8 +272,26 @@ _CHALLENGE_HEADERS = {
 }
 
 
+class EngineKwargs(TypedDict, total=False):
+    config_file: str | None
+    rules_file: str | None
+    blocklist: object
+    challenge_threshold: int
+    default_difficulty: int
+    challenge_handler: ChallengeHandler
+    cookie_name: str
+    verify_path: str
+    challenge_ttl: int
+    cookie_ttl: int
+    branding: bool
+    accent_color: str
+    max_challenge_failures: int
+    max_challenge_requests: int
+    rate_limit_window: int
+
+
 class Engine:
-    def __init__(self, secret, policy=None, **kwargs):
+    def __init__(self, secret, policy=None, **kwargs: Unpack[EngineKwargs]):
         config_file = kwargs.pop("config_file", None)
         rules_file = kwargs.pop("rules_file", None)
         self.blocklist = kwargs.pop("blocklist", None)
@@ -268,6 +307,7 @@ class Engine:
             setattr(handler, "secret", self.secret)
 
         self.store = Store(self.policy.challenge_ttl)
+        self._rate_limiter = RateLimiter()
 
     def _hmac(self, data: bytes) -> bytes:
         return hmac.new(self.secret, data, hashlib.sha256).digest()
@@ -415,16 +455,17 @@ class Engine:
                 "Forbidden",
             )
 
-        challenge = self.issue_challenge(
-            difficulty,
-            request,
-        )
-        body = self.render_challenge(
-            challenge,
-            request["path"],
-        )
+        ip_hash = self._hash_ip(request["remote_addr"])
+        if not self._rate_limiter.hit(
+            f"gen:{ip_hash}",
+            self.policy.max_challenge_requests,
+            self.policy.rate_limit_window,
+        ):
+            return "deny", 403, {"Content-Type": "text/plain"}, "Too Many Requests"
 
-        return "challenge", 429, _CHALLENGE_HEADERS, body
+        challenge = self.issue_challenge(difficulty, request)
+        body = self.render_challenge(challenge, request["path"])
+        return "challenge", 200, _CHALLENGE_HEADERS, body
 
     def handle_verify(
         self,
@@ -438,6 +479,14 @@ class Engine:
         )
 
         if not token:
+            ip_hash = self._hash_ip(request["remote_addr"])
+            if not self._rate_limiter.hit(
+                f"fail:{ip_hash}",
+                self.policy.max_challenge_failures,
+                self.policy.rate_limit_window,
+            ):
+                return 403, {"Content-Type": "text/plain"}, "Too Many Requests"
+
             if self.policy.challenge_handler.retry_on_failure:
                 redirect = _safe_redirect(form.get("redirect", "/"))
                 challenge = self.issue_challenge(
@@ -448,7 +497,7 @@ class Engine:
                     redirect,
                     error='<p class="error">Incorrect \u2014 try again.</p>',
                 )
-                return 429, _CHALLENGE_HEADERS, body
+                return 200, _CHALLENGE_HEADERS, body
             return 403, {"Content-Type": "text/plain"}, "Invalid"
 
         redirect = _safe_redirect(form.get("redirect", "/"))

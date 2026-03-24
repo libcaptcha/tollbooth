@@ -1,19 +1,20 @@
 import json
+from typing import Unpack
 
 from fastapi import Request
 
 from ..middleware import TollboothASGI, _parse_scope
-from .base import resolve_base
+from .base import TollboothKwargs, resolve_base
 
 
 class TollboothMiddleware(TollboothASGI):
-    def __init__(self, app, secret, **kwargs):
+    def __init__(self, app, secret, **kwargs: Unpack[TollboothKwargs]):
         kwargs.setdefault("json_mode", True)
         super().__init__(app, secret, **kwargs)
 
 
 class TollboothDep:
-    def __init__(self, tb_or_secret, **kwargs):
+    def __init__(self, tb_or_secret, **kwargs: Unpack[TollboothKwargs]):
         kwargs.setdefault("json_mode", True)
         self._tb = resolve_base(tb_or_secret, kwargs)
 
@@ -36,7 +37,7 @@ class TollboothDep:
         )
 
 
-def mount_verify(app, tb_or_secret, **kwargs):
+def mount_verify(app, tb_or_secret, **kwargs: Unpack[TollboothKwargs]):
     tb = resolve_base(tb_or_secret, kwargs)
 
     @app.post(tb.verify_path)

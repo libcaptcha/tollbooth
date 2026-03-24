@@ -1,6 +1,7 @@
+from typing import Unpack
 from urllib.parse import parse_qs
 
-from .base import TollboothBase, resolve_base
+from .base import TollboothBase, TollboothKwargs, resolve_base
 
 
 def _to_request(req):
@@ -71,7 +72,7 @@ def _apply(result, resp):
 
 
 class TollboothMiddleware:
-    def __init__(self, secret, **kwargs):
+    def __init__(self, secret, **kwargs: Unpack[TollboothKwargs]):
         self._tb = TollboothBase(
             secret=secret,
             **kwargs,
@@ -89,7 +90,7 @@ class TollboothMiddleware:
 
 
 class VerifyResource:
-    def __init__(self, tb_or_secret, **kwargs):
+    def __init__(self, tb_or_secret, **kwargs: Unpack[TollboothKwargs]):
         self._tb = resolve_base(tb_or_secret, kwargs)
 
     def on_post(self, req, resp):
@@ -100,7 +101,7 @@ class VerifyResource:
             _apply(result, resp)
 
 
-def tollbooth_hook(tb_or_secret, **kwargs):
+def tollbooth_hook(tb_or_secret, **kwargs: Unpack[TollboothKwargs]):
     tb = resolve_base(tb_or_secret, kwargs)
 
     def hook(req, resp, resource, params):

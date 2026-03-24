@@ -373,6 +373,9 @@ TollboothWSGI(
     challenge_ttl=1800,                # challenge expiry in seconds (default: 30 min)
     branding=True,                     # "Protected by tollbooth" footer (default: True)
     accent_color="#44ff88",            # theme accent color (default: "#44ff88")
+    max_challenge_failures=3,          # failed verifies before 429 lockout (default: 3)
+    max_challenge_requests=10,         # challenge generations before 429 lockout (default: 10)
+    rate_limit_window=300,             # sliding window for both limits in seconds (default: 300)
     exclude=[r"^/static/", r"^/_/"],   # paths that bypass all checks
 )
 ```
@@ -622,7 +625,7 @@ Rules with `"blocklist": true` are silently skipped when no blocklist is loaded.
 
 ## Redis
 
-Share challenges, secret, config, and rules across workers via Redis (or Dragonfly, KeyDB, Valkey).
+Share challenges, secret, config, rules, and rate-limit counters across workers via Redis (or Dragonfly, KeyDB, Valkey).
 
 ```
  worker 1        worker 2        worker 3
@@ -634,6 +637,7 @@ Share challenges, secret, config, and rules across workers via Redis (or Dragonf
               │ challenges │
               │   secret   │
               │   config   │
+              │ rate limits│
               └────────────┘
 ```
 

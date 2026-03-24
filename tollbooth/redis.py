@@ -54,11 +54,8 @@ class RedisEngine(Engine):
         super().__init__(secret, **kwargs)
         self._push_config()
 
-        self.store = RedisStore(
-            client,
-            prefix,
-            self.policy.challenge_ttl,
-        )
+        self.store = RedisStore(client, prefix, self.policy.challenge_ttl)
+        self._rate_limiter = RedisRateLimiter(client, prefix)
 
         self._listener = None
         if auto_sync:
@@ -138,6 +135,25 @@ class RedisEngine(Engine):
         )
         thread.start()
         self._listener = thread
+
+
+_LUA_RATE_HIT = """
+local cur = tonumber(redis.call('GET', KEYS[1]) or '0')
+if cur >= tonumber(ARGV[1]) then return 0 end
+local n = redis.call('INCR', KEYS[1])
+if n == 1 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end
+return 1
+"""
+
+
+class RedisRateLimiter:
+    def __init__(self, client, prefix="tollbooth"):
+        self._prefix = prefix
+        self._hit = client.register_script(_LUA_RATE_HIT)
+
+    def hit(self, key: str, limit: int, window: int) -> bool:
+        rkey = f"{self._prefix}:rl:{key}"
+        return bool(self._hit(keys=[rkey], args=[limit, window]))
 
 
 _LUA_IP_CHECK = """

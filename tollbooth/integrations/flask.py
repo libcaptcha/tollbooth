@@ -1,8 +1,9 @@
 from functools import wraps
+from typing import Unpack
 
 import flask
 
-from .base import TollboothBase, resolve_base
+from .base import TollboothBase, TollboothKwargs, resolve_base
 
 _PREFIX = "TOLLBOOTH_"
 
@@ -44,7 +45,7 @@ def _to_response(result):
 
 
 class Tollbooth:
-    def __init__(self, app=None, **kwargs):
+    def __init__(self, app=None, **kwargs: Unpack[TollboothKwargs]):
         self._kwargs = kwargs
         self._tb: TollboothBase | None = (
             TollboothBase(**kwargs)
@@ -116,7 +117,7 @@ class Tollbooth:
             return "", 200
 
 
-def tollbooth_protect(tb_or_secret, **kwargs):
+def tollbooth_protect(tb_or_secret, **kwargs: Unpack[TollboothKwargs]):
     tb = resolve_base(tb_or_secret, kwargs)
 
     def decorator(view):

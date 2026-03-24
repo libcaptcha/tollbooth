@@ -1,9 +1,10 @@
 from functools import wraps
+from typing import Unpack
 
 from django.http import HttpResponse
 from django.urls import Resolver404, resolve
 
-from .base import TollboothBase, resolve_base
+from .base import TollboothBase, TollboothKwargs, resolve_base
 
 
 def _to_request(r):
@@ -73,7 +74,7 @@ class TollboothMiddleware:
         return self.get_response(request)
 
 
-def make_middleware(secret, **kwargs):
+def make_middleware(secret, **kwargs: Unpack[TollboothKwargs]):
     tb = TollboothBase(secret=secret, **kwargs)
 
     class _Middleware:
@@ -90,7 +91,7 @@ def make_middleware(secret, **kwargs):
     return _Middleware
 
 
-def make_verify_view(tb_or_secret, **kwargs):
+def make_verify_view(tb_or_secret, **kwargs: Unpack[TollboothKwargs]):
     tb = resolve_base(tb_or_secret, kwargs)
 
     def view(request):
@@ -108,7 +109,7 @@ def tollbooth_exempt(view):
     return view
 
 
-def tollbooth_protect(tb_or_secret, **kwargs):
+def tollbooth_protect(tb_or_secret, **kwargs: Unpack[TollboothKwargs]):
     tb = resolve_base(tb_or_secret, kwargs)
 
     def decorator(view):

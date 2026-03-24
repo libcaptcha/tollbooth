@@ -1,6 +1,6 @@
 [project]
 name = "tollbooth"
-version = "0.2.6"
+version = "0.2.7"
 description = "A bot-challenge Python middleware issuing brief challenges, granting solvers signed access cookies."
 readme = "README.md"
 license = "MIT"
