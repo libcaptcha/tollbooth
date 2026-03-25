@@ -21,15 +21,15 @@ Bots get a browser challenge page. Humans solve it once, get a cookie, browse fr
 
 **ImageCaptcha() Solution: `U5R6H3`**
 
-<img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/image-captcha-light.webp" alt="Image CAPTCHA light theme" width="400">
-<img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/image-captcha-dark.webp" alt="Image CAPTCHA dark theme" width="400">
+<img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/image-captcha-light.webp" alt="Image CAPTCHA light theme" width="300">
+<img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/image-captcha-dark.webp" alt="Image CAPTCHA dark theme" width="300">
 
 <br>
 
 **SHA256Balloon() `Default`**
 
-<img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256-balloon-light.webp" alt="SHA256 Balloon light theme" width="400">
-<img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256-balloon-dark.webp" alt="SHA256 Balloon dark theme" width="400">
+<img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256-balloon-light.webp" alt="SHA256 Balloon light theme" width="300">
+<img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256-balloon-dark.webp" alt="SHA256 Balloon dark theme" width="300">
 
 ## Contents
 
