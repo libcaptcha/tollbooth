@@ -6,7 +6,7 @@ import time
 from dataclasses import asdict, fields
 
 from .blocklist import BLOCKLIST_URL, _load_text, parse_blocklist
-from .engine import CHALLENGE_TTL, Challenge, Engine, Policy, Rule
+from .engine import CHALLENGE_TTL, COOKIE_TTL, Challenge, Engine, Policy, Rule
 
 log = logging.getLogger("tollbooth.redis")
 
@@ -56,6 +56,7 @@ class RedisEngine(Engine):
 
         self.store = RedisStore(client, prefix, self.policy.challenge_ttl)
         self._rate_limiter = RedisRateLimiter(client, prefix)
+        self._token_tracker = RedisTokenTracker(client, prefix, self.policy.cookie_ttl)
 
         self._listener = None
         if auto_sync:
@@ -154,6 +155,51 @@ class RedisRateLimiter:
     def hit(self, key: str, limit: int, window: int) -> bool:
         rkey = f"{self._prefix}:rl:{key}"
         return bool(self._hit(keys=[rkey], args=[limit, window]))
+
+
+_LUA_TOKEN_HIT = """
+local total_limit = tonumber(ARGV[1])
+local rate_limit = tonumber(ARGV[2])
+local rate_window = tonumber(ARGV[3])
+local total_ttl = tonumber(ARGV[4])
+if total_limit > 0 then
+    local total = tonumber(redis.call('INCR', KEYS[1]))
+    if total == 1 and total_ttl > 0 then
+        redis.call('EXPIRE', KEYS[1], total_ttl)
+    end
+    if total > total_limit then return 0 end
+end
+if rate_limit > 0 then
+    local cur = tonumber(redis.call('GET', KEYS[2]) or '0')
+    if cur >= rate_limit then return 0 end
+    local n = redis.call('INCR', KEYS[2])
+    if n == 1 then redis.call('EXPIRE', KEYS[2], rate_window) end
+end
+return 1
+"""
+
+
+class RedisTokenTracker:
+    def __init__(self, client, prefix="tollbooth", cookie_ttl=COOKIE_TTL):
+        self._prefix = prefix
+        self._cookie_ttl = cookie_ttl
+        self._hit = client.register_script(_LUA_TOKEN_HIT)
+
+    def hit(
+        self,
+        cid: str,
+        rate_limit: int,
+        rate_window: int,
+        total_limit: int,
+    ) -> bool:
+        total_key = f"{self._prefix}:tk:{cid}"
+        rate_key = f"{self._prefix}:tkr:{cid}"
+        return bool(
+            self._hit(
+                keys=[total_key, rate_key],
+                args=[total_limit, rate_limit, rate_window, self._cookie_ttl],
+            )
+        )
 
 
 _LUA_IP_CHECK = """

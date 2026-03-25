@@ -376,6 +376,9 @@ TollboothWSGI(
     max_challenge_failures=3,          # failed verifies before 429 lockout (default: 3)
     max_challenge_requests=10,         # challenge generations before 429 lockout (default: 10)
     rate_limit_window=300,             # sliding window for both limits in seconds (default: 300)
+    token_rate_limit=120,              # max requests per token per rate window (default: 120)
+    token_rate_window=60,              # rate window duration in seconds (default: 60)
+    token_total_limit=3000,            # max lifetime requests per token (default: 3000)
     exclude=[r"^/static/", r"^/_/"],   # paths that bypass all checks
 )
 ```

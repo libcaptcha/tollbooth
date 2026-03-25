@@ -82,14 +82,11 @@ class TollboothBase:
         ):
             return self._handle_verify(request)
 
-        cookie = request["cookies"].get(
-            self.engine.policy.cookie_name,
-        )
-        if cookie and self.engine.check_cookie(
-            cookie,
-            request,
-        ):
-            return None
+        cookie = request["cookies"].get(self.engine.policy.cookie_name)
+        if cookie:
+            claims = self.engine.check_cookie(cookie, request)
+            if claims and self.engine.check_token_limit(claims["cid"]):
+                return None
 
         action, difficulty = self.engine.policy.evaluate(
             request,

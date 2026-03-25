@@ -18,10 +18,22 @@ Challenge = ChallengeBase
 COOKIE_NAME = "_tollbooth"
 VERIFY_PATH = "/.tollbooth/verify"
 CHALLENGE_TTL = 1800
-COOKIE_TTL = 604800
+COOKIE_TTL = 604_800
+
+DEFAULT_DIFFICULTY = 10
 CHALLENGE_THRESHOLD = 5
 MAX_STORE_SIZE = 100_000
-DEFAULT_DIFFICULTY = 10
+
+RATE_LIMIT_WINDOW = 300
+MAX_CHALLENGE_FAILURES = 3
+MAX_CHALLENGE_REQUESTS = 10
+
+TOKEN_RATE_WINDOW = 60
+TOKEN_RATE_LIMIT = 120
+TOKEN_TOTAL_LIMIT = 3000
+
+BRANDING = True
+ACCENT_COLOR = "#44ff88"
 
 
 class Request(TypedDict):
@@ -136,6 +148,38 @@ class RateLimiter:
             return True
 
 
+class TokenTracker:
+    def __init__(self):
+        self._lock = Lock()
+        self._windows: dict[str, list[float]] = {}
+        self._totals: dict[str, int] = {}
+
+    def hit(
+        self,
+        cid: str,
+        rate_limit: int,
+        rate_window: int,
+        total_limit: int,
+    ) -> bool:
+        now = time.time()
+        with self._lock:
+            if total_limit > 0:
+                count = self._totals.get(cid, 0) + 1
+                if count > total_limit:
+                    return False
+                self._totals[cid] = count
+
+            if rate_limit > 0:
+                cutoff = now - rate_window
+                hits = [t for t in self._windows.get(cid, []) if t > cutoff]
+                if len(hits) >= rate_limit:
+                    return False
+                hits.append(now)
+                self._windows[cid] = hits
+
+        return True
+
+
 @dataclass
 class Rule:
     name: str
@@ -197,11 +241,14 @@ class Policy:
     verify_path: str = VERIFY_PATH
     challenge_ttl: int = CHALLENGE_TTL
     cookie_ttl: int = COOKIE_TTL
-    branding: bool = True
-    accent_color: str = "#44ff88"
-    max_challenge_failures: int = 3
-    max_challenge_requests: int = 10
-    rate_limit_window: int = 300
+    branding: bool = BRANDING
+    accent_color: str = ACCENT_COLOR
+    max_challenge_failures: int = MAX_CHALLENGE_FAILURES
+    max_challenge_requests: int = MAX_CHALLENGE_REQUESTS
+    rate_limit_window: int = RATE_LIMIT_WINDOW
+    token_rate_limit: int = TOKEN_RATE_LIMIT
+    token_rate_window: int = TOKEN_RATE_WINDOW
+    token_total_limit: int = TOKEN_TOTAL_LIMIT
 
     def evaluate(
         self,
@@ -288,6 +335,9 @@ class EngineKwargs(TypedDict, total=False):
     max_challenge_failures: int
     max_challenge_requests: int
     rate_limit_window: int
+    token_rate_limit: int
+    token_rate_window: int
+    token_total_limit: int
 
 
 class Engine:
@@ -308,6 +358,7 @@ class Engine:
 
         self.store = Store(self.policy.challenge_ttl)
         self._rate_limiter = RateLimiter()
+        self._token_tracker = TokenTracker()
 
     def _hmac(self, data: bytes) -> bytes:
         return hmac.new(self.secret, data, hashlib.sha256).digest()
@@ -319,15 +370,25 @@ class Engine:
         self,
         cookie_value: str,
         request: Request,
-    ) -> bool:
+    ) -> dict | None:
         try:
             claims = jwt_decode(cookie_value, self.secret)
-            return hmac.compare_digest(
+            if hmac.compare_digest(
                 str(claims.get("ip", "")),
                 self._hash_ip(request["remote_addr"]),
-            )
+            ):
+                return claims
+            return None
         except (ValueError, KeyError):
-            return False
+            return None
+
+    def check_token_limit(self, cid: str) -> bool:
+        p = self.policy
+        if p.token_rate_limit == 0 and p.token_total_limit == 0:
+            return True
+        return self._token_tracker.hit(
+            cid, p.token_rate_limit, p.token_rate_window, p.token_total_limit
+        )
 
     def issue_challenge(
         self,
@@ -434,11 +495,11 @@ class Engine:
         self,
         request: Request,
     ) -> tuple[str, int, dict[str, str], str]:
-        cookie = request["cookies"].get(
-            self.policy.cookie_name,
-        )
-        if cookie and self.check_cookie(cookie, request):
-            return "pass", 0, {}, ""
+        cookie = request["cookies"].get(self.policy.cookie_name)
+        if cookie:
+            claims = self.check_cookie(cookie, request)
+            if claims and self.check_token_limit(claims["cid"]):
+                return "pass", 0, {}, ""
 
         action, difficulty = self.policy.evaluate(
             request,

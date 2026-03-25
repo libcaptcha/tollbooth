@@ -8,7 +8,7 @@ from urllib.request import urlopen
 log = logging.getLogger("tollbooth.blocklist")
 
 BLOCKLIST_URL = (
-    "https://github.com/tn3w/IPBlocklist" "/releases/latest/download/blocklist.txt"
+    "https://github.com/tn3w/IPBlocklist/releases/latest/download/blocklist.txt"
 )
 
 
