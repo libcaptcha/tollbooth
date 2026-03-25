@@ -458,10 +458,10 @@ class Engine:
         '<div class="branding">'
         "Protected by "
         '<a href="https://github.com/libcaptcha/'
-        'tollbooth">tollbooth</a>'
+        'tollbooth" target="_blank">tollbooth</a>'
         " · "
-        '<a href="https://github.com/libcaptcha">'
-        "libcaptcha</a>"
+        '<a href="https://github.com/libcaptcha" '
+        'target="_blank">libcaptcha</a>'
         "</div>"
     )
 
