@@ -71,6 +71,7 @@ class TollboothMiddleware:
         result = self._tb.process_request(req)
         if result:
             return _to_response(result)
+        request.tollbooth = req.get("_claims")
         return self.get_response(request)
 
 
@@ -86,6 +87,7 @@ def make_middleware(secret, **kwargs: Unpack[TollboothKwargs]):
             result = tb.process_request(req)
             if result:
                 return _to_response(result)
+            request.tollbooth = req.get("_claims")
             return self.get_response(request)
 
     return _Middleware
@@ -119,6 +121,7 @@ def tollbooth_protect(tb_or_secret, **kwargs: Unpack[TollboothKwargs]):
             result = tb.process_request(req)
             if result:
                 return _to_response(result)
+            request.tollbooth = req.get("_claims")
             return view(request, *args, **kw)
 
         return wrapper

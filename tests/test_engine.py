@@ -390,7 +390,7 @@ class TestEngine:
             make_request(user_agent="Scrapy/2.0")
         )
         assert action == "challenge"
-        assert status == 429
+        assert status == 200
         assert "challenge" in body.lower()
         assert headers["Cache-Control"] == "no-store"
         assert "Content-Security-Policy" in headers

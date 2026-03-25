@@ -211,7 +211,7 @@ class TestWSGIMiddleware:
             resp,
         )
         assert resp.status is not None
-        assert "429" in resp.status
+        assert "200" in resp.status
         html = b"".join(body).decode()
         assert "challenge" in html.lower()
 
@@ -409,7 +409,7 @@ class TestASGIMiddleware:
             challenge_middleware,
             self.make_scope(headers=[[b"user-agent", b"Scrapy"]]),
         )
-        assert status == 429
+        assert status == 200
         assert "challenge" in body.decode().lower()
 
     async def test_verify_endpoint(

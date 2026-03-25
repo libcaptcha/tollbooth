@@ -241,7 +241,7 @@ class TestE2EWSGI:
             app,
             user_agent="python-requests/2.28",
         )
-        assert "429" in status
+        assert "200" in status
         assert "text/html" in headers["Content-Type"]
         challenge = extract_challenge_data(body)
         assert challenge is not None
@@ -255,7 +255,7 @@ class TestE2EWSGI:
             app,
             user_agent="Scrapy/2.0",
         )
-        assert "429" in status
+        assert "200" in status
 
         challenge = extract_challenge_data(body)
         assert challenge is not None
@@ -293,7 +293,7 @@ class TestE2EWSGI:
             user_agent="curl/7.88",
             headers={"Accept": ""},
         )
-        assert "429" in status
+        assert "200" in status
 
     def test_single_weight_rule_passes(
         self,
@@ -385,7 +385,7 @@ class TestE2EWSGI:
             remote_addr="10.0.0.2",
             cookie=f"{COOKIE_NAME}={cookie_val}",
         )
-        assert "429" in status
+        assert "200" in status
 
     def test_security_headers_present(
         self,
@@ -554,7 +554,7 @@ class TestE2EASGI:
     ) -> None:
         scope = self.make_scope(headers=[[b"user-agent", b"Scrapy/2.0"]])
         status, _, _ = await self.do_request(app, scope)
-        assert status == 429
+        assert status == 200
 
     async def test_full_flow(
         self,

@@ -50,6 +50,8 @@ Bots get a browser challenge page. Humans solve it once, get a cookie, browse fr
 - [Challenge types](#challenge-types)
     - [SHA256Balloon & SHA256](#sha256balloon--sha256)
         - [Tuning](#tuning)
+    - [Navigator Attestation](#navigator-attestation)
+        - [Reading the score](#reading-the-score)
     - [Image CAPTCHA](#image-captcha)
         - [Setup](#setup)
     - [Difficulty reference](#difficulty-reference)
@@ -291,11 +293,12 @@ difficulty=10 (policy setting)
       └── ImageCaptcha   offset  -4  →  effective  6   6-character solution
 ```
 
-| Type             | Class           | Offset | Solved by  | GPU-resistant |
-| ---------------- | --------------- | ------ | ---------- | ------------- |
-| `sha256-balloon` | `SHA256Balloon` | +0     | browser JS | ✓             |
-| `sha256`         | `SHA256`        | +6     | browser JS | ✗             |
-| `image-captcha`  | `ImageCaptcha`  | -4     | human      | ✓             |
+| Type                    | Class                  | Offset | Solved by    | GPU-resistant |
+| ----------------------- | ---------------------- | ------ | ------------ | ------------- |
+| `sha256-balloon`        | `SHA256Balloon`        | +0     | browser JS   | ✓             |
+| `sha256`                | `SHA256`               | +6     | browser JS   | ✗             |
+| `image-captcha`         | `ImageCaptcha`         | -4     | human        | ✓             |
+| `navigator-attestation` | `NavigatorAttestation` | +0     | browser (WS) | ✓             |
 
 ### SHA256Balloon & SHA256
 
@@ -317,6 +320,61 @@ app = TollboothWSGI(app, secret="key",
 app = TollboothWSGI(app, secret="key",
     challenge_handler=SHA256(), default_difficulty=14)
 ```
+
+### Navigator Attestation
+
+Passive browser fingerprinting challenge — no user interaction required. The challenge page opens a WebSocket to `/.tollbooth/attest`, runs 3 rounds of signal collection (browser APIs, automation markers, hardware consistency, rendering fingerprints, and 20+ other categories), then scores the result server-side.
+
+```python
+from tollbooth import NavigatorAttestation, TollboothASGI
+
+app = TollboothASGI(
+    asgi_app,
+    secret="your-secret-key",
+    challenge_handler=NavigatorAttestation(),
+)
+```
+
+Difficulty controls the minimum score threshold required to pass (higher = stricter):
+
+```
+difficulty=5  → threshold 0.50  (suspicious browsers pass)
+difficulty=10 → threshold 0.60  (default)
+difficulty=15 → threshold 0.70
+difficulty=20 → threshold 0.80
+```
+
+The signal validator is a full Python port of the `navigator-attestation` JS library. Scoring covers automation globals, Selenium/CDP artifacts, stealth plugin markers, headless heuristics, VM detection, canvas/WebGL fingerprints, and cross-signal consistency checks. The attestation token is HMAC-signed with a per-challenge secret and expires after 5 minutes.
+
+#### Reading the score
+
+When a visitor passes, the clearance JWT includes an encrypted `score` field (0.0–1.0). Each integration exposes the decoded claims on the native request object — no manual cookie decoding needed.
+
+| Integration   | Claims location               |
+| ------------- | ----------------------------- |
+| **Flask**     | `flask.g.tollbooth`           |
+| **Django**    | `request.tollbooth`           |
+| **FastAPI**   | `request.state.tollbooth`     |
+| **Starlette** | `request.state.tollbooth`     |
+| **Falcon**    | `req.context.tollbooth`       |
+| **WSGI**      | `environ["tollbooth.claims"]` |
+| **ASGI**      | `scope["state"].tollbooth`    |
+
+```python
+# Flask
+score = g.tollbooth.score
+
+# Django
+score = request.tollbooth.score
+
+# FastAPI / Starlette
+score = request.state.tollbooth.score
+
+# Falcon
+score = req.context.tollbooth.score
+```
+
+The claims object also exposes `iat`, `exp`, `ip`, and `cid` as attributes. `score` is `None` for PoW challenges (SHA256Balloon / SHA256 / ImageCaptcha) — only `NavigatorAttestation` embeds it.
 
 ### Image CAPTCHA
 

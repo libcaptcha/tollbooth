@@ -130,13 +130,15 @@ class TestBase:
         result = tb.process_request(
             make_request(user_agent="BadBot"),
         )
+        assert result is not None
         assert result.status == 403
         assert result.body == "Forbidden"
 
     def test_challenges_html(self):
         tb = self.make_tb(policy=challenge_policy())
         result = tb.process_request(make_request())
-        assert result.status == 429
+        assert result is not None
+        assert result.status == 200
         assert "challenge" in result.body.lower()
 
     def test_exclude(self):
@@ -150,12 +152,8 @@ class TestBase:
             )
             is None
         )
-        assert (
-            tb.process_request(
-                make_request(path="/api"),
-            ).status
-            == 429
-        )
+        r = tb.process_request(make_request(path="/api"))
+        assert r is not None and r.status == 200
 
     def test_cookie_bypass(self):
         tb = self.make_tb(policy=challenge_policy())
@@ -171,6 +169,7 @@ class TestBase:
                 },
             )
         )
+        assert result is not None
         assert result.status == 302
         cookie_val = result.headers["Set-Cookie"].split("=", 1)[1].split(";")[0]
         assert (
@@ -188,7 +187,8 @@ class TestBase:
             policy=challenge_policy(),
         )
         result = tb.process_request(make_request())
-        assert result.status == 429
+        assert result is not None
+        assert result.status == 200
         data = json.loads(result.body)
         assert "id" in data["challenge"]
         assert data["challenge"]["difficulty"] == 1
@@ -202,6 +202,7 @@ class TestBase:
         result = tb.process_request(
             make_request(user_agent="BadBot"),
         )
+        assert result is not None
         assert result.status == 403
         assert json.loads(result.body)["error"] == "forbidden"
 
@@ -219,6 +220,7 @@ class TestBase:
                 },
             )
         )
+        assert result is not None
         assert result.status == 200
         assert "token" in json.loads(result.body)
 
@@ -231,6 +233,7 @@ class TestBase:
                 form={"id": "fake", "nonce": "0"},
             )
         )
+        assert result is not None
         assert result.status == 403
         assert json.loads(result.body)["error"] == "invalid"
 
@@ -248,6 +251,7 @@ class TestBase:
                 },
             )
         )
+        assert result is not None
         assert result.status == 302
         assert result.headers["Location"] == "/ok"
         assert COOKIE_NAME in result.headers["Set-Cookie"]
@@ -261,6 +265,7 @@ class TestBase:
                 form={"id": "fake", "nonce": "0"},
             )
         )
+        assert result is not None
         assert result.status == 403
         assert result.body == "Invalid"
 
@@ -273,6 +278,7 @@ class TestBase:
             "javascript:alert(1)",
         ]:
             stored = tb.engine.store.get(cid)
+            assert stored is not None
             stored.spent = False
             result = tb.process_request(
                 make_request(
@@ -285,6 +291,7 @@ class TestBase:
                     },
                 )
             )
+            assert result is not None
             assert result.headers["Location"] == "/"
 
     def test_is_verify(self):
@@ -314,14 +321,12 @@ class TestBase:
 
 # --- Flask ---
 
-try:
-    import flask
+import importlib.util
 
-    from tollbooth.integrations.flask import Tollbooth, tollbooth_protect
-
-    HAS_FLASK = True
-except ImportError:
-    HAS_FLASK = False
+HAS_FLASK = importlib.util.find_spec("flask") is not None
+HAS_FLASK = (
+    HAS_FLASK and importlib.util.find_spec("tollbooth.integrations.flask") is not None
+)
 
 
 @pytest.mark.skipif(
@@ -330,6 +335,10 @@ except ImportError:
 )
 class TestFlask:
     def make_app(self, **tb_kwargs):
+        import flask
+
+        from tollbooth.integrations.flask import Tollbooth
+
         tb_kwargs.setdefault(
             "policy",
             Policy(rules=[]),
@@ -363,7 +372,7 @@ class TestFlask:
             policy=challenge_policy(),
         )
         with app.test_client() as c:
-            assert c.get("/").status_code == 429
+            assert c.get("/").status_code == 200
 
     def test_exempt_skips(self):
         app, _ = self.make_app(
@@ -389,12 +398,12 @@ class TestFlask:
         )
         with app.test_client() as c:
             resp = c.get("/")
-            assert resp.status_code == 429
+            assert resp.status_code == 200
             challenge = extract_challenge(resp.data)
             assert challenge is not None
             nonce = solve_pow(challenge)
             resp = c.post(
-                tb._tb.verify_path,
+                tb.tb.verify_path,
                 data={
                     "id": challenge["id"],
                     "nonce": nonce,
@@ -404,6 +413,10 @@ class TestFlask:
             assert resp.status_code == 302
 
     def test_standalone_protect(self):
+        import flask
+
+        from tollbooth.integrations.flask import tollbooth_protect
+
         app = flask.Flask(__name__)
         app.config["TESTING"] = True
         protect = tollbooth_protect(
@@ -421,10 +434,14 @@ class TestFlask:
             return "open"
 
         with app.test_client() as c:
-            assert c.get("/protected").status_code == 429
+            assert c.get("/protected").status_code == 200
             assert c.get("/open").status_code == 200
 
     def test_init_app_deferred(self):
+        import flask
+
+        from tollbooth.integrations.flask import Tollbooth
+
         app = flask.Flask(__name__)
         app.config["TESTING"] = True
         tb = Tollbooth(
@@ -442,6 +459,10 @@ class TestFlask:
             assert c.get("/").status_code == 200
 
     def test_protect_method(self):
+        import flask
+
+        from tollbooth.integrations.flask import Tollbooth
+
         app = flask.Flask(__name__)
         app.config["TESTING"] = True
         tb = Tollbooth(
@@ -455,15 +476,15 @@ class TestFlask:
             return "guarded"
 
         with app.test_client() as c:
-            assert c.get("/guarded").status_code == 429
+            assert c.get("/guarded").status_code == 200
 
 
 # --- FastAPI ---
 
 try:
-    from tollbooth.integrations.fastapi import TollboothDep
-    from tollbooth.integrations.fastapi import TollboothMiddleware as FastAPIMW
+    import tollbooth.integrations.fastapi as _fastapi_check
 
+    del _fastapi_check
     HAS_FASTAPI = True
 except ImportError:
     HAS_FASTAPI = False
@@ -477,6 +498,8 @@ class TestFastAPI:
     async def test_middleware_json_challenge(self):
         from fastapi import FastAPI
         from httpx import ASGITransport, AsyncClient
+
+        from tollbooth.integrations.fastapi import TollboothMiddleware as FastAPIMW
 
         app = FastAPI()
         app.add_middleware(
@@ -495,12 +518,14 @@ class TestFastAPI:
             base_url="http://test",
         ) as c:
             resp = await c.get("/")
-            assert resp.status_code == 429
+            assert resp.status_code == 200
             assert "challenge" in resp.json()
 
     async def test_middleware_allows_normal(self):
         from fastapi import FastAPI
         from httpx import ASGITransport, AsyncClient
+
+        from tollbooth.integrations.fastapi import TollboothMiddleware as FastAPIMW
 
         app = FastAPI()
         app.add_middleware(
@@ -525,6 +550,8 @@ class TestFastAPI:
         from fastapi import Depends, FastAPI
         from httpx import ASGITransport, AsyncClient
 
+        from tollbooth.integrations.fastapi import TollboothDep
+
         app = FastAPI()
         dep = TollboothDep(
             SECRET,
@@ -544,11 +571,13 @@ class TestFastAPI:
             base_url="http://test",
         ) as c:
             resp = await c.get("/")
-            assert resp.status_code == 429
+            assert resp.status_code == 200
 
     async def test_dep_passes_normal(self):
         from fastapi import Depends, FastAPI
         from httpx import ASGITransport, AsyncClient
+
+        from tollbooth.integrations.fastapi import TollboothDep
 
         app = FastAPI()
         dep = TollboothDep(
@@ -590,23 +619,16 @@ try:
         django.setup()
 
     from django.http import HttpResponse as DjangoResponse
-    from django.test import RequestFactory
     from django.urls import path
 
-    from tollbooth.integrations.django import TollboothMiddleware as DjangoMW
-    from tollbooth.integrations.django import (
-        make_middleware,
-        make_verify_view,
-        tollbooth_exempt,
-    )
-    from tollbooth.integrations.django import tollbooth_protect as django_protect
+    from tollbooth.integrations.django import tollbooth_exempt
 
     def _index_view(request):
-        return DjangoResponse("OK")
+        return DjangoResponse(b"OK")
 
     @tollbooth_exempt
     def _exempt_view(request):
-        return DjangoResponse("exempt")
+        return DjangoResponse(b"exempt")
 
     urlpatterns = [
         path("", _index_view),
@@ -624,57 +646,71 @@ except ImportError:
 )
 class TestDjango:
     def setup_method(self):
+        from django.test import RequestFactory
+
         self.factory = RequestFactory()
 
     def test_make_middleware_allows(self):
-        MW = make_middleware(
-            SECRET,
-            policy=Policy(rules=[]),
-        )
-        mw = MW(lambda r: DjangoResponse("OK"))
+        from django.http import HttpResponse as DR
+
+        from tollbooth.integrations.django import make_middleware
+
+        MW = make_middleware(SECRET, policy=Policy(rules=[]))
+        mw = MW(lambda r: DR(b"OK"))
         resp = mw(self.factory.get("/"))
         assert resp.status_code == 200
 
     def test_make_middleware_challenges(self):
-        MW = make_middleware(
-            SECRET,
-            policy=challenge_policy(),
-        )
-        mw = MW(lambda r: DjangoResponse("OK"))
+        from django.http import HttpResponse as DR
+
+        from tollbooth.integrations.django import make_middleware
+
+        MW = make_middleware(SECRET, policy=challenge_policy())
+        mw = MW(lambda r: DR(b"OK"))
         resp = mw(self.factory.get("/"))
-        assert resp.status_code == 429
+        assert resp.status_code == 200
 
     def test_settings_middleware(self):
-        mw = DjangoMW(lambda r: DjangoResponse("OK"))
+        from django.http import HttpResponse as DR
+
+        from tollbooth.integrations.django import TollboothMiddleware as DjangoMW
+
+        mw = DjangoMW(lambda r: DR(b"OK"))
         resp = mw(self.factory.get("/"))
-        assert resp.status_code == 429
+        assert resp.status_code == 200
 
     def test_exempt_view(self):
-        mw = DjangoMW(lambda r: DjangoResponse("OK"))
+        from django.http import HttpResponse as DR
+
+        from tollbooth.integrations.django import TollboothMiddleware as DjangoMW
+
+        mw = DjangoMW(lambda r: DR(b"OK"))
         resp = mw(self.factory.get("/exempt/"))
         assert resp.status_code == 200
 
     def test_protect_decorator(self):
-        protect = django_protect(
-            SECRET,
-            policy=challenge_policy(),
-        )
+        from django.http import HttpResponse as DR
+
+        from tollbooth.integrations.django import tollbooth_protect as django_protect
+
+        protect = django_protect(SECRET, policy=challenge_policy())
 
         @protect
         def view(request):
-            return DjangoResponse("secret")
+            return DR(b"secret")
 
         resp = view(self.factory.get("/"))
-        assert resp.status_code == 429
+        assert resp.status_code == 200
 
     def test_verify_flow(self):
-        MW = make_middleware(
-            SECRET,
-            policy=challenge_policy(),
-        )
-        mw = MW(lambda r: DjangoResponse("OK"))
+        from django.http import HttpResponse as DR
+
+        from tollbooth.integrations.django import make_middleware
+
+        MW = make_middleware(SECRET, policy=challenge_policy())
+        mw = MW(lambda r: DR(b"OK"))
         resp = mw(self.factory.get("/"))
-        assert resp.status_code == 429
+        assert resp.status_code == 200
         challenge = extract_challenge(resp.content)
         assert challenge is not None
         nonce = solve_pow(challenge)
@@ -691,6 +727,8 @@ class TestDjango:
         assert resp.status_code == 302
 
     def test_make_verify_view(self):
+        from tollbooth.integrations.django import make_verify_view
+
         tb = TollboothBase(secret=SECRET)
         view = make_verify_view(tb)
         cid, nonce = solve(
@@ -712,11 +750,9 @@ class TestDjango:
 # --- Falcon ---
 
 try:
-    import falcon
-    import falcon.testing
+    import falcon as _falcon_check
 
-    from tollbooth.integrations.falcon import TollboothMiddleware as FalconMW
-    from tollbooth.integrations.falcon import VerifyResource, tollbooth_hook
+    del _falcon_check
 
     class _IndexResource:
         def on_get(self, req, resp):
@@ -733,20 +769,20 @@ except ImportError:
 )
 class TestFalcon:
     def make_client(self, **mw_kwargs):
-        policy = mw_kwargs.pop(
-            "policy",
-            Policy(rules=[]),
-        )
-        mw = FalconMW(
-            SECRET,
-            policy=policy,
-            **mw_kwargs,
-        )
+        import falcon
+        import falcon.testing
+
+        from tollbooth.integrations.falcon import TollboothMiddleware as FalconMW
+
+        policy = mw_kwargs.pop("policy", Policy(rules=[]))
+        mw = FalconMW(SECRET, policy=policy, **mw_kwargs)
         app = falcon.App(middleware=[mw])
         app.add_route("/", _IndexResource())
         return falcon.testing.TestClient(app)
 
     def test_allows_normal(self):
+        import falcon
+
         c = self.make_client()
         result = c.simulate_get("/")
         assert result.status == falcon.HTTP_200
@@ -756,7 +792,7 @@ class TestFalcon:
             policy=challenge_policy(),
         )
         result = c.simulate_get("/")
-        assert "429" in result.status
+        assert "200" in result.status
 
     def test_denies_bad_bot(self):
         c = self.make_client(policy=deny_policy())
@@ -767,16 +803,18 @@ class TestFalcon:
         assert "403" in result.status
 
     def test_verify_flow(self):
-        mw = FalconMW(
-            SECRET,
-            policy=challenge_policy(),
-        )
+        import falcon
+        import falcon.testing
+
+        from tollbooth.integrations.falcon import TollboothMiddleware as FalconMW
+
+        mw = FalconMW(SECRET, policy=challenge_policy())
         app = falcon.App(middleware=[mw])
         app.add_route("/", _IndexResource())
         c = falcon.testing.TestClient(app)
 
         result = c.simulate_get("/")
-        assert "429" in result.status
+        assert "200" in result.status
         challenge = extract_challenge(result.text)
         assert challenge is not None
         nonce = solve_pow(challenge)
@@ -796,10 +834,12 @@ class TestFalcon:
         assert "302" in result.status
 
     def test_hook_blocks(self):
-        hook = tollbooth_hook(
-            SECRET,
-            policy=challenge_policy(),
-        )
+        import falcon
+        import falcon.testing
+
+        from tollbooth.integrations.falcon import tollbooth_hook
+
+        hook = tollbooth_hook(SECRET, policy=challenge_policy())
 
         class Protected:
             @falcon.before(hook)
@@ -810,19 +850,18 @@ class TestFalcon:
         app.add_route("/", Protected())
         c = falcon.testing.TestClient(app)
         result = c.simulate_get("/")
-        assert "429" in result.status
+        assert "200" in result.status
 
     def test_verify_resource(self):
+        import falcon
+        import falcon.testing
+
+        from tollbooth.integrations.falcon import VerifyResource
+
         tb = TollboothBase(secret=SECRET)
-        cid, nonce = solve(
-            tb.engine,
-            remote_addr="127.0.0.1",
-        )
+        cid, nonce = solve(tb.engine, remote_addr="127.0.0.1")
         app = falcon.App()
-        app.add_route(
-            "/.tollbooth/verify",
-            VerifyResource(tb),
-        )
+        app.add_route("/.tollbooth/verify", VerifyResource(tb))
         c = falcon.testing.TestClient(app)
         result = c.simulate_post(
             "/.tollbooth/verify",
@@ -843,8 +882,9 @@ class TestFalcon:
 # --- Starlette ---
 
 try:
-    from tollbooth.integrations.starlette import TollboothMiddleware as StarletteMW
+    import tollbooth.integrations.starlette as _starlette_check
 
+    del _starlette_check
     HAS_STARLETTE = True
 except ImportError:
     HAS_STARLETTE = False
@@ -910,6 +950,8 @@ async def collect(mw, scope, body=b""):
 @pytest.mark.skipif(not HAS_STARLETTE, reason="starlette not installed")
 class TestStarlette:
     def mw(self, **kwargs):
+        from tollbooth.integrations.starlette import TollboothMiddleware as StarletteMW
+
         policy = kwargs.pop("policy", Policy(rules=[]))
         return StarletteMW(dummy_asgi, secret=SECRET, policy=policy, **kwargs)
 
@@ -921,7 +963,7 @@ class TestStarlette:
     async def test_challenges_bot(self):
         mw = self.mw(policy=challenge_policy())
         status, _, body = await collect(mw, make_scope())
-        assert status == 429
+        assert status == 200
         assert b"challenge" in body.lower()
 
     async def test_non_http_passthrough(self):
@@ -930,6 +972,8 @@ class TestStarlette:
         async def ws(scope, receive, send):
             nonlocal called
             called = True
+
+        from tollbooth.integrations.starlette import TollboothMiddleware as StarletteMW
 
         mw = StarletteMW(ws, secret=SECRET)
         await mw({"type": "websocket"}, None, None)

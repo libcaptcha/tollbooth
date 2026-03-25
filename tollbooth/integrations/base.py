@@ -1,5 +1,6 @@
 import json
 import re
+import types
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Unpack
@@ -8,6 +9,7 @@ from ..engine import _CHALLENGE_HEADERS, Engine, EngineKwargs, _safe_redirect
 
 
 class TollboothKwargs(EngineKwargs, total=False):
+    secret: str | None
     engine: Engine | None
     exclude: list[str] | None
     json_mode: bool | Callable[[dict], bool]
@@ -86,6 +88,7 @@ class TollboothBase:
         if cookie:
             claims = self.engine.check_cookie(cookie, request)
             if claims and self.engine.check_token_limit(claims["cid"]):
+                request["_claims"] = types.SimpleNamespace(score=None, **claims)
                 return None
 
         action, difficulty = self.engine.policy.evaluate(
@@ -94,6 +97,7 @@ class TollboothBase:
         )
 
         if action == "allow":
+            request["_claims"] = types.SimpleNamespace(score=None)
             return None
 
         use_json = self._is_json(request)
@@ -134,17 +138,10 @@ class TollboothBase:
             handler = self.engine.policy.challenge_handler
             payload = handler.render_payload(challenge, self.verify_path, path)
             body = json.dumps({"challenge": payload})
-            return Response(429, dict(_JSON_CT), body)
+            return Response(200, dict(_JSON_CT), body)
 
-        body = self.engine.render_challenge(
-            challenge,
-            path,
-        )
-        return Response(
-            429,
-            dict(_CHALLENGE_HEADERS),
-            body,
-        )
+        body = self.engine.render_challenge(challenge, path)
+        return Response(200, dict(_CHALLENGE_HEADERS), body)
 
     def _handle_verify(self, request):
         form = request["form"]

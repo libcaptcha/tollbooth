@@ -8,12 +8,14 @@ class ChallengeType(str, Enum):
     SHA256_BALLOON = "sha256-balloon"
     SHA256 = "sha256"
     IMAGE_CAPTCHA = "image-captcha"
+    NAVIGATOR_ATTESTATION = "navigator-attestation"
 
 
 DIFFICULTY_OFFSETS: dict[ChallengeType, int] = {
     ChallengeType.SHA256_BALLOON: 0,
     ChallengeType.SHA256: 8,
     ChallengeType.IMAGE_CAPTCHA: -4,
+    ChallengeType.NAVIGATOR_ATTESTATION: 0,
 }
 
 
@@ -71,3 +73,20 @@ class ChallengeHandler(ABC):
     @property
     def retry_on_failure(self) -> bool:
         return False
+
+    def jwt_extra(self, random_data: str, nonce: int | str) -> dict:
+        return {}
+
+    @property
+    def supports_websocket(self) -> bool:
+        return False
+
+    async def handle_websocket(self, _scope, _receive, _send, _engine) -> None:
+        pass
+
+    @property
+    def supports_http_poll(self) -> bool:
+        return False
+
+    def handle_http_poll(self, _body: dict, _engine) -> dict:
+        return {"type": "error", "reason": "not supported"}

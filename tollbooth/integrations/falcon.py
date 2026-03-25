@@ -87,6 +87,8 @@ class TollboothMiddleware:
         result = self._tb.process_request(request)
         if result:
             _apply(result, resp)
+        else:
+            req.context.tollbooth = request.get("_claims")
 
 
 class VerifyResource:
@@ -109,5 +111,7 @@ def tollbooth_hook(tb_or_secret, **kwargs: Unpack[TollboothKwargs]):
         result = tb.process_request(request)
         if result:
             _apply(result, resp)
+        else:
+            req.context.tollbooth = request.get("_claims")
 
     return hook

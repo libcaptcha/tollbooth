@@ -87,6 +87,7 @@ class Tollbooth:
         result = self.tb.process_request(req)
         if result:
             return _to_response(result)
+        flask.g.tollbooth = req.get("_claims")
         return None
 
     def exempt(self, view):
@@ -100,6 +101,7 @@ class Tollbooth:
             result = self.tb.process_request(req)
             if result:
                 return _to_response(result)
+            flask.g.tollbooth = req.get("_claims")
             return view(*args, **kwargs)
 
         return wrapper
@@ -127,6 +129,7 @@ def tollbooth_protect(tb_or_secret, **kwargs: Unpack[TollboothKwargs]):
             result = tb.process_request(req)
             if result:
                 return _to_response(result)
+            flask.g.tollbooth = req.get("_claims")
             return view(*args, **kw)
 
         return wrapper

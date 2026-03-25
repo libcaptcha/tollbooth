@@ -58,6 +58,31 @@ def _b64url_decode(s: str) -> bytes:
 _JWT_HEADER = _b64url_encode(b'{"alg":"HS256","typ":"JWT"}')
 
 
+def _meta_encrypt(data: dict, secret: bytes) -> str:
+    plaintext = json.dumps(data, separators=(",", ":")).encode()
+    key = hmac.new(secret, b"tbmeta", hashlib.sha256).digest()
+    n = len(plaintext)
+    keystream = b"".join(
+        hmac.new(key, i.to_bytes(4, "big"), hashlib.sha256).digest()
+        for i in range(-(-n // 32))
+    )[:n]
+    return _b64url_encode(bytes(a ^ b for a, b in zip(plaintext, keystream)))
+
+
+def _meta_decrypt(s: str, secret: bytes) -> dict | None:
+    try:
+        ct = _b64url_decode(s)
+        key = hmac.new(secret, b"tbmeta", hashlib.sha256).digest()
+        n = len(ct)
+        keystream = b"".join(
+            hmac.new(key, i.to_bytes(4, "big"), hashlib.sha256).digest()
+            for i in range(-(-n // 32))
+        )[:n]
+        return json.loads(bytes(a ^ b for a, b in zip(ct, keystream)))
+    except Exception:
+        return None
+
+
 def jwt_encode(claims: dict, secret: bytes) -> str:
     payload = _b64url_encode(json.dumps(claims).encode())
     signing = f"{_JWT_HEADER}.{payload}"
@@ -307,7 +332,7 @@ _CSP = (
     "script-src 'unsafe-inline'; "
     "worker-src blob:; "
     "style-src 'unsafe-inline'; "
-    "img-src data:; "
+    "img-src data: 'self'; "
     "connect-src 'self'"
 )
 
@@ -376,12 +401,17 @@ class Engine:
     ) -> dict | None:
         try:
             claims = jwt_decode(cookie_value, self.secret)
-            if hmac.compare_digest(
+            if not hmac.compare_digest(
                 str(claims.get("ip", "")),
                 self._hash_ip(request["remote_addr"]),
             ):
-                return claims
-            return None
+                return None
+            meta_enc = claims.pop("_m", None)
+            if meta_enc:
+                meta = _meta_decrypt(meta_enc, self.secret)
+                if meta:
+                    claims.update(meta)
+            return claims
         except (ValueError, KeyError):
             return None
 
@@ -444,15 +474,18 @@ class Engine:
         self.store.set(challenge)
 
         now = time.time()
-        return jwt_encode(
-            {
-                "iat": int(now),
-                "exp": int(now + self.policy.cookie_ttl),
-                "ip": self._hash_ip(request["remote_addr"]),
-                "cid": challenge_id,
-            },
-            self.secret,
+        extra = self.policy.challenge_handler.jwt_extra(
+            challenge.random_data, nonce_val
         )
+        claims: dict = {
+            "iat": int(now),
+            "exp": int(now + self.policy.cookie_ttl),
+            "ip": self._hash_ip(request["remote_addr"]),
+            "cid": challenge_id,
+        }
+        if extra:
+            claims["_m"] = _meta_encrypt(extra, self.secret)
+        return jwt_encode(claims, self.secret)
 
     _BRANDING = (
         '<div class="branding">'

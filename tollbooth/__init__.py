@@ -1,5 +1,11 @@
 from .blocklist import IPBlocklist
-from .challenges import SHA256, ChallengeType, ImageCaptcha, SHA256Balloon
+from .challenges import (
+    SHA256,
+    ChallengeType,
+    ImageCaptcha,
+    NavigatorAttestation,
+    SHA256Balloon,
+)
 from .engine import (
     Engine,
     EngineKwargs,
@@ -23,6 +29,7 @@ __all__ = [
     "EngineKwargs",
     "ImageCaptcha",
     "IPBlocklist",
+    "NavigatorAttestation",
     "Policy",
     "Request",
     "Rule",

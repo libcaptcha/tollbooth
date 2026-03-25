@@ -1,4 +1,6 @@
 import http.cookies
+import json
+import types
 from typing import Any, Unpack
 from urllib.parse import parse_qs
 
@@ -149,10 +151,36 @@ class TollboothWSGI:
         return self._tb.engine
 
     def __call__(self, environ, start_response):
+        handler = self._tb.engine.policy.challenge_handler
+        if (
+            environ.get("REQUEST_METHOD") == "POST"
+            and environ.get("PATH_INFO") == self._tb.engine.policy.verify_path
+            and "application/json" in environ.get("CONTENT_TYPE", "")
+            and handler.supports_http_poll
+        ):
+            try:
+                length = min(int(environ.get("CONTENT_LENGTH") or 0), 1_048_576)
+                body = json.loads(environ["wsgi.input"].read(length))
+                data = handler.handle_http_poll(body, self._tb.engine)
+                start_response(
+                    "200 OK",
+                    [
+                        ("Content-Type", "application/json"),
+                        ("Cache-Control", "no-store"),
+                    ],
+                )
+                return [json.dumps(data).encode()]
+            except Exception:
+                start_response(
+                    "400 Bad Request", [("Content-Type", "application/json")]
+                )
+                return [b'{"error":"bad_request"}']
+
         request = parse_wsgi_request(environ)
         result = self._tb.process_request(request)
 
         if not result:
+            environ["tollbooth.claims"] = request.get("_claims")
             return list(
                 self.app(environ, start_response),
             )
@@ -177,23 +205,65 @@ class TollboothASGI:
         return self._tb.engine
 
     async def __call__(self, scope, receive, send):
+        if scope["type"] == "websocket":
+            handler = self._tb.engine.policy.challenge_handler
+            if (
+                handler.supports_websocket
+                and scope.get("path") == self._tb.engine.policy.verify_path
+            ):
+                await handler.handle_websocket(scope, receive, send, self._tb.engine)
+                return
+            await self.app(scope, receive, send)
+            return
+
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
         request = _parse_scope(scope)
 
-        if self._tb.is_verify(
-            request["method"],
-            request["path"],
-        ):
-            request["form"] = _parse_form(
-                await _read_body(receive),
-            )
+        if self._tb.is_verify(request["method"], request["path"]):
+            body_bytes = await _read_body(receive)
+            ct = request["headers"].get("content-type", "")
+            handler = self._tb.engine.policy.challenge_handler
+            if "application/json" in ct and handler.supports_http_poll:
+                try:
+                    data = handler.handle_http_poll(
+                        json.loads(body_bytes), self._tb.engine
+                    )
+                    await _asgi_respond(
+                        send,
+                        Response(
+                            200,
+                            {
+                                "Content-Type": "application/json",
+                                "Cache-Control": "no-store",
+                            },
+                            json.dumps(data),
+                        ),
+                    )
+                except Exception:
+                    await _asgi_respond(
+                        send,
+                        Response(
+                            400,
+                            {"Content-Type": "application/json"},
+                            '{"error":"bad_request"}',
+                        ),
+                    )
+                return
+            request["form"] = _parse_form(body_bytes)
 
         result = self._tb.process_request(request)
 
         if not result:
+            claims = request.get("_claims")
+            if claims:
+                state = scope.get("state")
+                if state is None:
+                    scope["state"] = types.SimpleNamespace(tollbooth=claims)
+                else:
+                    state.tollbooth = claims
             await self.app(scope, receive, send)
             return
 
