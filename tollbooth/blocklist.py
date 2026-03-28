@@ -137,5 +137,25 @@ class IPBlocklist:
         thread.start()
         return thread
 
+    def match_range(self, ip: str) -> str | None:
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return None
+        val = int(addr)
+        if addr.version == 4:
+            starts, ends = self._v4_starts, self._v4_ends
+        else:
+            starts, ends = self._v6_starts, self._v6_ends
+        idx = bisect_right(starts, val) - 1
+        if idx < 0 or val > ends[idx]:
+            return None
+        start_addr = ipaddress.ip_address(starts[idx])
+        end_addr = ipaddress.ip_address(ends[idx])
+        networks = list(ipaddress.summarize_address_range(start_addr, end_addr))
+        if len(networks) == 1:
+            return str(networks[0])
+        return f"{start_addr}-{end_addr}"
+
     def __len__(self):
         return len(self._v4_starts) + len(self._v6_starts)

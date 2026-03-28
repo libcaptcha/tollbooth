@@ -102,6 +102,7 @@ app = TollboothWSGI(app, secret="key", challenge_handler=CharacterCaptcha())
 - [Integrations](#integrations)
     - [Reusing an engine across integrations](#reusing-an-engine-across-integrations)
     - [JSON mode](#json-mode)
+- [Reading claims](#reading-claims)
 - [IP Blocklist](#ip-blocklist)
     - [In-memory](#in-memory)
     - [Redis-backed](#redis-backed)
@@ -418,33 +419,15 @@ The signal validator is a full Python port of the `navigator-attestation` JS lib
 
 #### Reading the score
 
-When a visitor passes, the clearance JWT includes an encrypted `score` field (0.0–1.0). Each integration exposes the decoded claims on the native request object — no manual cookie decoding needed.
-
-| Integration   | Claims location               |
-| ------------- | ----------------------------- |
-| **Flask**     | `flask.g.tollbooth`           |
-| **Django**    | `request.tollbooth`           |
-| **FastAPI**   | `request.state.tollbooth`     |
-| **Starlette** | `request.state.tollbooth`     |
-| **Falcon**    | `req.context.tollbooth`       |
-| **WSGI**      | `environ["tollbooth.claims"]` |
-| **ASGI**      | `scope["state"].tollbooth`    |
+`score` (0.0–1.0) is available on the [claims object](#reading-claims) after a visitor passes. It is `None` for PoW challenges (SHA256Balloon / SHA256 / CharacterCaptcha / SlidingCaptcha) — only `NavigatorAttestation` embeds it.
 
 ```python
 # Flask
 score = g.tollbooth.score
 
-# Django
-score = request.tollbooth.score
-
-# FastAPI / Starlette
+# Django / FastAPI / Starlette / Falcon — see Reading claims
 score = request.state.tollbooth.score
-
-# Falcon
-score = req.context.tollbooth.score
 ```
-
-The claims object also exposes `iat`, `exp`, `ip`, and `cid` as attributes. `score` is `None` for PoW challenges (SHA256Balloon / SHA256 / CharacterCaptcha / SlidingCaptcha) — only `NavigatorAttestation` embeds it.
 
 ### Character CAPTCHA
 
@@ -802,6 +785,57 @@ id=Xk9mP2...&nonce=38471&redirect=/api/data
 ```
 
 Response on success: `302 Location: /api/data  Set-Cookie: _tollbooth=<JWT>`
+
+## Reading claims
+
+When a request passes (valid cookie, allow rule, or after solving a challenge), each integration exposes a claims object on the native request object — no manual cookie decoding needed.
+
+| Integration   | Claims location               |
+| ------------- | ----------------------------- |
+| **Flask**     | `flask.g.tollbooth`           |
+| **Django**    | `request.tollbooth`           |
+| **FastAPI**   | `request.state.tollbooth`     |
+| **Starlette** | `request.state.tollbooth`     |
+| **Falcon**    | `req.context.tollbooth`       |
+| **WSGI**      | `environ["tollbooth.claims"]` |
+| **ASGI**      | `scope["state"].tollbooth`    |
+
+| Field             | Type            | Description                                                                          |
+| ----------------- | --------------- | ------------------------------------------------------------------------------------ |
+| `score`           | `float \| None` | Attestation score 0.0–1.0; `None` for PoW challenges                                 |
+| `iat`             | `int`           | Issued-at timestamp                                                                  |
+| `exp`             | `int`           | Expiry timestamp                                                                     |
+| `ip`              | `str`           | HMAC of the client IP                                                                |
+| `cid`             | `str`           | Challenge ID                                                                         |
+| `matched_rule`    | `str \| None`   | Name of the `deny` or `challenge` rule that matched; `None` for allow / weight-based |
+| `blocklist_match` | `str \| None`   | IP range from the blocklist (e.g. `"1.2.0.0/16"`) when a blocklist rule matched      |
+| `is_crawler`      | `bool`          | `True` if the user-agent is a known crawler (requires `crawleruseragents`)           |
+| `crawler_name`    | `str \| None`   | Crawler product name when `is_crawler` is `True`                                     |
+
+```python
+# Flask
+claims = g.tollbooth
+
+# Django
+claims = request.tollbooth
+
+# FastAPI / Starlette
+claims = request.state.tollbooth
+
+# Falcon
+claims = req.context.tollbooth
+
+# WSGI
+claims = environ["tollbooth.claims"]
+
+print(claims.matched_rule, claims.is_crawler, claims.crawler_name)
+```
+
+`is_crawler` and `crawler_name` require the optional `crawleruseragents` package:
+
+```bash
+pip install crawleruseragents
+```
 
 ## IP Blocklist
 

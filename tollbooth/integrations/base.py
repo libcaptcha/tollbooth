@@ -5,7 +5,18 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Unpack
 
-from ..engine import Engine, EngineKwargs, _challenge_headers, _safe_redirect
+from ..engine import (
+    Engine,
+    EngineKwargs,
+    _blocklist_match,
+    _challenge_headers,
+    _safe_redirect,
+)
+
+try:
+    import crawleruseragents as _cua
+except ImportError:
+    _cua = None
 
 
 class TollboothKwargs(EngineKwargs, total=False):
@@ -74,6 +85,13 @@ class TollboothBase:
     def is_verify(self, method, path):
         return method == "POST" and path == self.verify_path
 
+    def _crawler_fields(self, user_agent: str) -> tuple[bool, str | None]:
+        if _cua is None:
+            return False, None
+        is_crawler = bool(_cua.is_crawler(user_agent))
+        crawler_name = user_agent.split("/")[0].strip() if is_crawler else None
+        return is_crawler, crawler_name
+
     def process_request(self, request):
         if self.is_excluded(request["path"]):
             return None
@@ -91,16 +109,38 @@ class TollboothBase:
         if cookie:
             claims = self.engine.check_cookie(cookie, request)
             if claims and self.engine.check_token_limit(claims["cid"]):
-                request["_claims"] = types.SimpleNamespace(**{"score": None, **claims})
+                is_crawler, crawler_name = self._crawler_fields(request["user_agent"])
+                request["_claims"] = types.SimpleNamespace(
+                    **{
+                        "score": None,
+                        "matched_rule": None,
+                        "blocklist_match": None,
+                        "is_crawler": is_crawler,
+                        "crawler_name": crawler_name,
+                        **claims,
+                    }
+                )
                 return None
 
-        action, difficulty = self.engine.policy.evaluate(
+        action, difficulty, matched_rule = self.engine.policy.evaluate(
             request,
             self.engine.blocklist,
         )
 
         if action == "allow":
-            request["_claims"] = types.SimpleNamespace(score=None)
+            is_crawler, crawler_name = self._crawler_fields(request["user_agent"])
+            bl_match = (
+                _blocklist_match(self.engine.blocklist, request["remote_addr"])
+                if matched_rule and matched_rule.blocklist
+                else None
+            )
+            request["_claims"] = types.SimpleNamespace(
+                score=None,
+                matched_rule=matched_rule.name if matched_rule else None,
+                blocklist_match=bl_match,
+                is_crawler=is_crawler,
+                crawler_name=crawler_name,
+            )
             return None
 
         use_json = self._is_json(request)

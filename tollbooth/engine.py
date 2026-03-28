@@ -280,25 +280,24 @@ class Policy:
         self,
         request: Request,
         blocklist=None,
-    ) -> tuple[str, int]:
+    ) -> tuple[str, int, "Rule | None"]:
         weight = 0
 
         for rule in self.rules:
             if not rule.matches(request, blocklist):
                 continue
-            if rule.action in ("allow", "deny"):
-                return rule.action, 0
+            if rule.action == "allow":
+                return "allow", 0, None
+            if rule.action == "deny":
+                return "deny", 0, rule
             if rule.action == "challenge":
-                return (
-                    "challenge",
-                    rule.difficulty or self.default_difficulty,
-                )
+                return "challenge", rule.difficulty or self.default_difficulty, rule
             weight += rule.weight
 
         if weight >= self.challenge_threshold:
-            return "challenge", self.default_difficulty
+            return "challenge", self.default_difficulty, None
 
-        return "allow", 0
+        return "allow", 0, None
 
 
 def load_policy(config=None, rules=None) -> Policy:
@@ -322,6 +321,17 @@ def _in_blocklist(blocklist, ip: str) -> bool:
     if isinstance(blocklist, list):
         return any(bl.contains(ip) for bl in blocklist)
     return blocklist.contains(ip)
+
+
+def _blocklist_match(blocklist, ip: str) -> str | None:
+    if not blocklist:
+        return None
+    items = blocklist if isinstance(blocklist, list) else [blocklist]
+    for bl in items:
+        match = bl.match_range(ip)
+        if match:
+            return match
+    return None
 
 
 def _safe_redirect(redirect: str) -> str:
@@ -551,7 +561,7 @@ class Engine:
             if claims and self.check_token_limit(claims["cid"]):
                 return "pass", 0, {}, ""
 
-        action, difficulty = self.policy.evaluate(
+        action, difficulty, _ = self.policy.evaluate(
             request,
             self.blocklist,
         )
