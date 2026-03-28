@@ -6,7 +6,7 @@ If you discover a security vulnerability in tollbooth, please report it responsi
 
 **Do not open a public issue.**
 
-Instead, use [GitHub's private vulnerability reporting](https://github.com/libcaptcha/tollbooth/security/advisories/new) with:
+Instead, use [GitHub's private vulnerability reporting](https://github.com/libcaptcha/tollbooth/security) with:
 
 - Description of the vulnerability
 - Steps to reproduce
