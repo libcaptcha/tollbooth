@@ -27,6 +27,21 @@ Bots get a browser challenge page. Humans solve it once, get a cookie, browse fr
 
 ## Screenshots
 
+```python
+from tollbooth import (
+    CharacterCaptcha, SlidingCaptcha, CircleCaptcha,
+    SHA256Balloon, NavigatorAttestation,
+    TollboothWSGI,
+)
+# from tollbooth.integrations.flask import Tollbooth
+
+app = TollboothWSGI(app, secret="key", challenge_handler=CharacterCaptcha())
+#                                       challenge_handler=SlidingCaptcha()
+#                                       challenge_handler=CircleCaptcha()
+#                                       challenge_handler=SHA256Balloon()
+#                                       challenge_handler=NavigatorAttestation()
+```
+
 **CharacterCaptcha() Solution: `U5R6H3`**
 
 <div style="display: flex; gap: 10px;">
