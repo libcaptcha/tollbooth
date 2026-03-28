@@ -30,8 +30,8 @@ Bots get a browser challenge page. Humans solve it once, get a cookie, browse fr
 **CharacterCaptcha() Solution: `U5R6H3`**
 
 <div style="display: flex; gap: 10px;">
-  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/character-captcha-light.webp" alt="Light" width="300">
-  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/character-captcha-dark.webp" alt="Dark" width="300">
+  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/character-captcha-light.webp" alt="Light" width="49%">
+  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/character-captcha-dark.webp" alt="Dark" width="49%">
 </div>
 
 <br>
@@ -39,8 +39,8 @@ Bots get a browser challenge page. Humans solve it once, get a cookie, browse fr
 **SHA256Balloon() `Default`**
 
 <div style="display: flex; gap: 10px;">
-  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256-balloon-light.webp" alt="Light" width="300">
-  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256-balloon-dark.webp" alt="Dark" width="300">
+  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256-balloon-light.webp" alt="Light" width="49%">
+  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256-balloon-dark.webp" alt="Dark" width="49%">
 </div>
 
 ## Contents
