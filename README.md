@@ -90,20 +90,20 @@ Runnable examples for every integration and challenge type:
 
 ```
 examples/
-  general.py             # WSGI + ASGI quickstart  (python examples/general.py [wsgi|asgi])
+  general.py                  # WSGI + ASGI quickstart  (python examples/general.py [wsgi|asgi])
   integrations/
-    wsgi.py                # bare WSGI
-    asgi.py                # bare ASGI  (requires uvicorn)
-    flask_app.py           # Flask middleware + per-route + exempt
-    fastapi_app.py         # FastAPI middleware + dependency + verify
-    starlette_app.py       # Starlette middleware
-    django_app.py          # Django — self-contained, runs with runserver
-    falcon_app.py          # Falcon middleware + per-resource hook
+    wsgi.py                   # bare WSGI
+    asgi.py                   # bare ASGI  (requires uvicorn)
+    flask_app.py              # Flask middleware + per-route + exempt
+    fastapi_app.py            # FastAPI middleware + dependency + verify
+    starlette_app.py          # Starlette middleware
+    django_app.py             # Django — self-contained, runs with runserver
+    falcon_app.py             # Falcon middleware + per-resource hook
   challenges/
-    sha256_balloon.py      # SHA256Balloon (default, memory-hard)
-    sha256.py              # SHA256 (faster, no memory cost)
-    character_captcha.py   # Image CAPTCHA  (requires Pillow)
-    navigator_attestation.py # Browser fingerprinting
+    sha256_balloon.py         # SHA256Balloon (default, memory-hard)
+    sha256.py                 # SHA256 (faster, no memory cost)
+    character_captcha.py      # Character CAPTCHA  (requires Pillow)
+    navigator_attestation.py  # Browser fingerprinting
 ```
 
 ## Install
