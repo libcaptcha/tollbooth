@@ -9,7 +9,10 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
-from typing import TypedDict, Unpack
+from typing import TYPE_CHECKING, TypedDict, Unpack
+
+if TYPE_CHECKING:
+    from .blocklist import IPBlocklist
 
 from .challenges import ChallengeBase, ChallengeHandler, SHA256Balloon
 
@@ -228,9 +231,7 @@ class Rule:
         ]
 
     def matches(self, request: Request, blocklist=None) -> bool:
-        if self.blocklist and (
-            not blocklist or not blocklist.contains(request["remote_addr"])
-        ):
+        if self.blocklist and not _in_blocklist(blocklist, request["remote_addr"]):
             return False
 
         if self._ua_re and not self._ua_re.search(request["user_agent"]):
@@ -315,6 +316,14 @@ def load_policy(config=None, rules=None) -> Policy:
     )
 
 
+def _in_blocklist(blocklist, ip: str) -> bool:
+    if not blocklist:
+        return False
+    if isinstance(blocklist, list):
+        return any(bl.contains(ip) for bl in blocklist)
+    return blocklist.contains(ip)
+
+
 def _safe_redirect(redirect: str) -> str:
     if (
         not redirect.startswith("/")
@@ -349,7 +358,7 @@ class EngineKwargs(TypedDict, total=False):
     rules: "list[Rule]"
     config_file: str | None
     rules_file: str | None
-    blocklist: object
+    blocklist: "IPBlocklist | list[IPBlocklist] | None"
     challenge_threshold: int
     default_difficulty: int
     challenge_handler: ChallengeHandler

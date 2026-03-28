@@ -775,15 +775,25 @@ Challenge or block known malicious IPs using [tn3w/IPBlocklist](https://github.c
 ```python
 from tollbooth import Engine, IPBlocklist
 
-blocklist = IPBlocklist()
-blocklist.load()                        # downloads ~23 MB from GitHub
-blocklist.load("/path/to/list.txt")    # or load from file
+# Single source — cached at ~/.cache/tollbooth/<filename>
+blocklist = IPBlocklist()        # defaults to tn3w/IPBlocklist
+blocklist.load()                 # downloads once; uses cache on subsequent calls
+blocklist.load(force=True)       # bypass cache and re-download
 
-engine = Engine("your-secret-key", blocklist=blocklist)
-blocklist.start_updates(interval=86400) # optional daily refresh
+# Multiple sources
+blocklists = IPBlocklist.from_sources([
+    "https://example.com/list1.txt",
+    "https://example.com/list2.txt",
+])
+for bl in blocklists:
+    bl.load()
+
+engine = Engine("your-secret-key", blocklist=blocklist)   # or blocklist=blocklists
+blocklist.start_updates(interval=86400)  # daily refresh; clears cache before re-downloading
 ```
 
 Parsed into compact integer ranges with O(log n) binary search. No dependencies.
+The `blocklist` kwarg accepts a single `IPBlocklist` or a `list[IPBlocklist]`; an IP is blocked if it matches any.
 
 ### Redis-backed
 

@@ -47,11 +47,25 @@ def _merge(ranges):
     return merged
 
 
-def _load_text(source):
-    if source.startswith(("http://", "https://")):
-        with urlopen(source) as resp:
-            return resp.read().decode()
-    return Path(source).read_text()
+def _cache_path_for(source: str) -> Path | None:
+    if not source.startswith(("http://", "https://")):
+        return None
+    filename = source.rstrip("/").rsplit("/", 1)[-1] or "blocklist.txt"
+    return Path.home() / ".cache" / "tollbooth" / filename
+
+
+def _load_text(source: str, cache: Path | None) -> str:
+    if not source.startswith(("http://", "https://")):
+        return Path(source).read_text()
+    if cache and cache.exists():
+        log.debug("Loading blocklist from cache: %s", cache)
+        return cache.read_text()
+    with urlopen(source) as resp:
+        text = resp.read().decode()
+    if cache:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(text)
+    return text
 
 
 def parse_blocklist(text):
@@ -73,14 +87,25 @@ def _contains(starts, ends, val):
 
 
 class IPBlocklist:
-    def __init__(self):
+    def __init__(self, source: str = BLOCKLIST_URL):
+        self._source = source
+        self._cache = _cache_path_for(source)
         self._v4_starts: list[int] = []
         self._v4_ends: list[int] = []
         self._v6_starts: list[int] = []
         self._v6_ends: list[int] = []
 
-    def load(self, source=BLOCKLIST_URL):
-        text = _load_text(source)
+    @classmethod
+    def from_sources(
+        cls, sources: str | list[str]
+    ) -> "IPBlocklist | list[IPBlocklist]":
+        if isinstance(sources, str):
+            return cls(sources)
+        return [cls(s) for s in sources]
+
+    def load(self, force: bool = False):
+        cache = None if force else self._cache
+        text = _load_text(self._source, cache)
         v4, v6 = parse_blocklist(text)
         s4, e4 = zip(*v4) if v4 else ([], [])
         s6, e6 = zip(*v6) if v6 else ([], [])
@@ -93,23 +118,17 @@ class IPBlocklist:
         except ValueError:
             return False
         if addr.version == 4:
-            return _contains(
-                self._v4_starts,
-                self._v4_ends,
-                int(addr),
-            )
-        return _contains(
-            self._v6_starts,
-            self._v6_ends,
-            int(addr),
-        )
+            return _contains(self._v4_starts, self._v4_ends, int(addr))
+        return _contains(self._v6_starts, self._v6_ends, int(addr))
 
-    def start_updates(self, interval=86400, source=BLOCKLIST_URL):
+    def start_updates(self, interval: int = 86400):
         def run():
             while True:
                 threading.Event().wait(interval)
                 try:
-                    self.load(source)
+                    if self._cache and self._cache.exists():
+                        self._cache.unlink()
+                    self.load()
                     log.info("Blocklist updated: %d ranges", len(self))
                 except Exception:
                     log.warning("Blocklist update failed", exc_info=True)

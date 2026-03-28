@@ -233,7 +233,7 @@ class RedisIPBlocklist:
         return f"{val:0{width}x}"
 
     def load(self, source=BLOCKLIST_URL):
-        text = _load_text(source)
+        text = _load_text(source, None)
         v4, v6 = parse_blocklist(text)
 
         for version, ranges in [(4, v4), (6, v6)]:
