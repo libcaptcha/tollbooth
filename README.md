@@ -43,6 +43,24 @@ Bots get a browser challenge page. Humans solve it once, get a cookie, browse fr
   <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sha256-balloon-dark.webp" alt="Dark" width="49%">
 </div>
 
+<br>
+
+**SlidingCaptcha()**
+
+<div style="display: flex; gap: 10px;">
+  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sliding-captcha-light.webp" alt="Light" width="49%">
+  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/sliding-captcha-dark.webp" alt="Dark" width="49%">
+</div>
+
+<br>
+
+**CircleCaptcha()**
+
+<div style="display: flex; gap: 10px;">
+  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/circle-captcha-light.webp" alt="Light" width="49%">
+  <img src="https://raw.githubusercontent.com/libcaptcha/tollbooth/screenshots/circle-captcha-dark.webp" alt="Dark" width="49%">
+</div>
+
 ## Contents
 
 - [Screenshots](#screenshots)
