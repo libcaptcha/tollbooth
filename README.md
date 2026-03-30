@@ -109,6 +109,7 @@ app = TollboothWSGI(app, secret="key", challenge_handler=CharacterCaptcha())
     - [Blocklist rules](#blocklist-rules)
 - [Redis](#redis)
 - [Third-party CAPTCHAs](#third-party-captchas)
+- [Standalone Rate Limiter](#standalone-rate-limiter)
 - [Tests](#tests)
 - [Contributing](#contributing)
 - [Security](#security)
@@ -1070,6 +1071,75 @@ GeeTest requires four hidden fields populated by the JS callback (`geetest_lotNu
 ### Arkose Labs
 
 The embed loads Arkose's enforcement script dynamically, using the site key as the script path segment. The completed token is written to a hidden `fc-token` field.
+
+## Standalone Rate Limiter
+
+`RateLimiter` in `tollbooth.extras.rate_limiter` provides per-IP rate limiting with human-readable limit strings and per-route decorators. It works independently of tollbooth's challenge engine and supports all the same frameworks.
+
+**Backend:** in-memory LRU (default, evicts oldest entries under pressure) or Redis.
+
+```python
+from tollbooth.extras import RateLimiter
+
+rl = RateLimiter(default="100/minute")        # in-memory
+rl = RateLimiter(default="100/minute", redis_client=r, prefix="myapp")  # Redis
+```
+
+Rate strings accept: `"10/second"`, `"100/minute"`, `"500/hour"`, `"1000/day"` (and plural/abbreviated forms like `"10 per min"`).
+
+### Decorator
+
+Auto-detects the framework from the function arguments — works with Django, Falcon, Flask, FastAPI, and Starlette:
+
+```python
+@rl.limit("10/minute")
+def my_view(request): ...            # Django / Flask
+
+@rl.limit("5/second")
+def on_get(self, req, resp): ...     # Falcon resource method
+
+@rl.limit("20/minute")
+async def my_endpoint(request): ... # FastAPI / Starlette
+
+@rl.exempt
+def health(request): ...            # never rate-limited
+```
+
+### Flask
+
+```python
+rl.init_flask(app, rate="200/minute")  # global, respects @rl.exempt
+```
+
+### Django
+
+```python
+# settings.py — add the returned class to MIDDLEWARE
+RateLimit = rl.as_django_middleware(rate="200/minute")
+MIDDLEWARE = ["myapp.middleware.RateLimit", ...]
+```
+
+### Falcon / raw WSGI
+
+```python
+app = rl.wsgi_middleware(app, rate="500/hour")
+```
+
+### FastAPI / Starlette / raw ASGI
+
+```python
+# ASGI middleware (global)
+app = rl.asgi_middleware(app, rate="500/hour")
+
+# FastAPI per-route dependency
+from fastapi import Depends
+
+dep = rl.fastapi_dependency("10/minute")
+
+@app.get("/sensitive")
+async def sensitive(_=Depends(dep)):
+    ...
+```
 
 ## Tests
 

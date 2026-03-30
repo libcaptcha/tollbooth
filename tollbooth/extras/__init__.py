@@ -1,3 +1,4 @@
+from .rate_limiter import RateLimiter
 from .third_party_captcha import (
     AltchaCreds,
     ArkoseCreds,
@@ -9,6 +10,7 @@ from .third_party_captcha import (
 )
 
 __all__ = [
+    "RateLimiter",
     "ThirdPartyCaptcha",
     "CaptchaCreds",
     "AltchaCreds",
