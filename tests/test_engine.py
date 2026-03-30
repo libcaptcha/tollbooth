@@ -216,7 +216,7 @@ class TestPolicy:
                 ),
             ]
         )
-        action, _ = policy.evaluate(make_request(user_agent="Googlebot/2.1"))
+        action, _, _ = policy.evaluate(make_request(user_agent="Googlebot/2.1"))
         assert action == "allow"
 
     def test_deny_rule(self) -> None:
@@ -229,7 +229,7 @@ class TestPolicy:
                 ),
             ]
         )
-        action, _ = policy.evaluate(make_request(user_agent="AhrefsBot/7.0"))
+        action, _, _ = policy.evaluate(make_request(user_agent="AhrefsBot/7.0"))
         assert action == "deny"
 
     def test_challenge_rule(self) -> None:
@@ -243,7 +243,7 @@ class TestPolicy:
                 ),
             ]
         )
-        action, diff = policy.evaluate(make_request(user_agent="Scrapy/2.0"))
+        action, diff, _ = policy.evaluate(make_request(user_agent="Scrapy/2.0"))
         assert action == "challenge"
         assert diff == 8
 
@@ -260,7 +260,7 @@ class TestPolicy:
             ],
             default_difficulty=6,
         )
-        _, diff = policy.evaluate(make_request(user_agent="test"))
+        _, diff, _ = policy.evaluate(make_request(user_agent="test"))
         assert diff == 6
 
     def test_weight_accumulation(self) -> None:
@@ -285,7 +285,7 @@ class TestPolicy:
             user_agent="curl/7",
             headers={"Accept": ""},
         )
-        action, _ = policy.evaluate(request)
+        action, _, _ = policy.evaluate(request)
         assert action == "challenge"
 
     def test_weight_below_threshold(self) -> None:
@@ -300,7 +300,7 @@ class TestPolicy:
             ],
             challenge_threshold=5,
         )
-        action, _ = policy.evaluate(make_request(user_agent="curl/7"))
+        action, _, _ = policy.evaluate(make_request(user_agent="curl/7"))
         assert action == "allow"
 
     def test_first_match_wins(self) -> None:
@@ -318,7 +318,7 @@ class TestPolicy:
                 ),
             ]
         )
-        action, _ = policy.evaluate(make_request(user_agent="Bot"))
+        action, _, _ = policy.evaluate(make_request(user_agent="Bot"))
         assert action == "allow"
 
     def test_no_match_allows(self) -> None:
@@ -331,7 +331,7 @@ class TestPolicy:
                 ),
             ]
         )
-        action, _ = policy.evaluate(make_request(user_agent="Mozilla/5.0"))
+        action, _, _ = policy.evaluate(make_request(user_agent="Mozilla/5.0"))
         assert action == "allow"
 
     def test_load_default_policy(self) -> None:

@@ -113,6 +113,11 @@
         "blocklist": true
     },
     {
+        "name": "bogon-origin",
+        "action": "CHALLENGE",
+        "bogon_ip": true
+    },
+    {
         "name": "crawler",
         "action": "CHALLENGE",
         "crawler": true

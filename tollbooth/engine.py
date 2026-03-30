@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import html as _html
 import ipaddress
 import json
 import re
@@ -225,6 +226,7 @@ class Rule:
     weight: int = 0
     blocklist: bool = False
     crawler: bool = False
+    bogon_ip: bool = False
 
     def __post_init__(self):
         self.action = self.action.lower()
@@ -238,6 +240,9 @@ class Rule:
 
     def matches(self, request: Request, blocklist=None) -> bool:
         if self.blocklist and not _in_blocklist(blocklist, request["remote_addr"]):
+            return False
+
+        if self.bogon_ip and not _is_bogon_ip(request["remote_addr"]):
             return False
 
         if self.crawler and (
@@ -334,6 +339,13 @@ def _in_blocklist(blocklist, ip: str) -> bool:
     return blocklist.contains(ip)
 
 
+def _is_bogon_ip(ip: str) -> bool:
+    try:
+        return not ipaddress.ip_address(ip).is_global
+    except ValueError:
+        return True
+
+
 def _blocklist_match(blocklist, ip: str) -> str | None:
     if not blocklist:
         return None
@@ -382,6 +394,7 @@ def _challenge_headers(handler) -> dict[str, str]:
 class EngineKwargs(TypedDict, total=False):
     policy: "Policy | None"
     rules: "list[Rule]"
+    default_rules: bool
     config_file: str | None
     rules_file: str | None
     blocklist: "IPBlocklist | list[IPBlocklist] | None"
@@ -405,6 +418,8 @@ class EngineKwargs(TypedDict, total=False):
 class Engine:
     def __init__(self, secret, **kwargs: Unpack[EngineKwargs]):
         policy = kwargs.pop("policy", None)
+        extra_rules = kwargs.pop("rules", None)
+        include_defaults = kwargs.pop("default_rules", True)
         config_file = kwargs.pop("config_file", None)
         rules_file = kwargs.pop("rules_file", None)
         self.blocklist = kwargs.pop("blocklist", None)
@@ -414,6 +429,11 @@ class Engine:
 
         for key, val in kwargs.items():
             setattr(self.policy, key, val)
+
+        if extra_rules is not None:
+            self.policy.rules = (
+                extra_rules + self.policy.rules if include_defaults else extra_rules
+            )
 
         handler = self.policy.challenge_handler
         if hasattr(handler, "secret"):
@@ -518,8 +538,8 @@ class Engine:
             "ip": self._hash_ip(request["remote_addr"]),
             "cid": challenge_id,
         }
-        if extra:
-            claims["_m"] = _meta_encrypt(extra, self.secret)
+        meta = {**(extra or {}), "remote_addr": request["remote_addr"]}
+        claims["_m"] = _meta_encrypt(meta, self.secret)
         return jwt_encode(claims, self.secret)
 
     _BRANDING = (
@@ -559,7 +579,10 @@ class Engine:
             .replace("{{ACCENT_COLOR}}", self.policy.accent_color)
         )
         for key, value in payload_dict.items():
-            html = html.replace(f"{{{{{key}}}}}", str(value))
+            safe_value = (
+                str(value) if key == "captchaEmbed" else _html.escape(str(value))
+            )
+            html = html.replace(f"{{{{{key}}}}}", safe_value)
         return html
 
     def process(

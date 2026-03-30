@@ -155,7 +155,7 @@ class TestRuleIntegration:
             "cookies": {},
             "form": {},
         }
-        action, diff = policy.evaluate(request, blocklist)
+        action, diff, _ = policy.evaluate(request, blocklist)
         assert action == "challenge"
         assert diff == 8
 
@@ -181,7 +181,7 @@ class TestRuleIntegration:
             "cookies": {},
             "form": {},
         }
-        action, _ = policy.evaluate(request, blocklist)
+        action, _, _ = policy.evaluate(request, blocklist)
         assert action == "allow"
 
     def test_blocklist_rule_no_blocklist(self):
@@ -206,7 +206,7 @@ class TestRuleIntegration:
             "cookies": {},
             "form": {},
         }
-        action, _ = policy.evaluate(request, None)
+        action, _, _ = policy.evaluate(request, None)
         assert action == "allow"
 
 

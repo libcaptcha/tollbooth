@@ -607,11 +607,16 @@ Rules are evaluated top-to-bottom. The first matching terminal action (`allow`, 
     "difficulty": 14,
     "weight": 3,
     "blocklist": false,
-    "crawler": false
+    "crawler": false,
+    "bogon_ip": false
 }
 ```
 
-All match fields are optional and ANDed together. A rule with no match fields matches everything. `remote_addresses` uses CIDR notation; all other string fields use regex. `blocklist: true` requires an `IPBlocklist` to be loaded; `crawler: true` requires the `crawleruseragents` package — rules with unmet dependencies are silently skipped.
+All match fields are optional and ANDed together. A rule with no match fields matches everything. `remote_addresses` uses CIDR notation; all other string fields use regex.
+
+- `blocklist: true` — matches when the client IP is in a loaded `IPBlocklist`; silently skipped when no blocklist is loaded.
+- `crawler: true` — matches known crawlers via the `crawleruseragents` package; silently skipped when the package is not installed.
+- `bogon_ip: true` — matches any IP that is not globally routable: private ranges (RFC 1918), loopback, link-local, multicast, reserved, unspecified, or unparseable. Useful to challenge requests that arrive with a spoofed or non-routable source IP.
 
 ### Actions
 
@@ -626,12 +631,33 @@ All match fields are optional and ANDed together. A rule with no match fields ma
 
 Tollbooth ships with [rules.json](https://github.com/libcaptcha/tollbooth/blob/main/tollbooth/rules.json) covering common traffic patterns out of the box:
 
-| Category      | Examples                                                                                                                     |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **Deny**      | sqlmap, Acunetix, Nmap, `.env`/`.git` probes, shell probes, path traversal                                                   |
-| **Allow**     | Googlebot, Bingbot, UptimeRobot, Pingdom, Slack/Discord previews, archive.org                                                |
-| **Challenge** | AI crawlers (GPT/Claude/CCBot, diff=14), headless browsers (diff=12), Scrapy (diff=12), known crawlers (`crawleruseragents`) |
-| **Weigh**     | curl/wget (+3), missing Accept (+3), missing Accept-Language (+2), Connection:close (+2)                                     |
+| Category      | Examples                                                                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Deny**      | sqlmap, Acunetix, Nmap, `.env`/`.git` probes, shell probes, path traversal                                                         |
+| **Allow**     | Googlebot, Bingbot, UptimeRobot, Pingdom, Slack/Discord previews, archive.org                                                      |
+| **Challenge** | AI crawlers (GPT/Claude/CCBot, diff=14), headless browsers (diff=12), Scrapy (diff=12), known crawlers, IP blocklist, bogon-origin |
+| **Weigh**     | curl/wget (+3), missing Accept (+3), missing Accept-Language (+2), Connection:close (+2)                                           |
+
+When you pass `rules=` to `Engine` or any integration, your rules are **prepended** to the defaults so they take priority. The built-in rules remain active unless you explicitly opt out:
+
+```python
+# custom rule runs first; default rules still apply after
+app = TollboothWSGI(your_app, secret="key", rules=[
+    Rule(name="internal", action="allow", remote_addresses=["10.0.0.0/8"]),
+])
+
+# disable all default rules — only your rules run
+app = TollboothWSGI(your_app, secret="key", default_rules=False, rules=[
+    Rule(name="internal", action="allow", remote_addresses=["10.0.0.0/8"]),
+    Rule(name="default",  action="challenge"),
+])
+```
+
+To replace the default rules entirely with a file, use `rules_file=`:
+
+```python
+app = TollboothWSGI(your_app, secret="key", rules_file="/etc/tollbooth/rules.json")
+```
 
 ### Custom policy examples
 
@@ -1164,6 +1190,15 @@ pip install black isort
 isort . && black .
 npx prtfm
 ```
+
+## Security analysis
+
+```bash
+snyk code test --include-ignores
+```
+
+Findings in `.snyk` are permanent ignores for false positives and intentional
+patterns (test fixtures, example placeholder keys, demo server bindings).
 
 ## Contributing
 
