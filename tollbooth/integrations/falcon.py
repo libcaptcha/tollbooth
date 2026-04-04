@@ -28,7 +28,7 @@ def _read_form(req):
         )
         body = req.bounded_stream.read(length)
         return {
-            k: v[0]
+            k: ",".join(v) if len(v) > 1 else v[0]
             for k, v in parse_qs(
                 body.decode(),
             ).items()

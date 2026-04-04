@@ -90,8 +90,14 @@ app = TollboothWSGI(app, secret="key", challenge_handler=CharacterCaptcha())
         - [Setup](#setup-1)
     - [Circle CAPTCHA](#circle-captcha)
         - [Setup](#setup-2)
-    - [Third-party CAPTCHA challenge](#third-party-captcha-challenge)
+    - [Image CAPTCHA](#image-captcha)
         - [Setup](#setup-3)
+    - [Image Grid CAPTCHA](#image-grid-captcha)
+        - [Setup](#setup-4)
+    - [Audio CAPTCHA](#audio-captcha)
+        - [Setup](#setup-5)
+    - [Third-party CAPTCHA challenge](#third-party-captcha-challenge)
+        - [Setup](#setup-6)
     - [Difficulty reference](#difficulty-reference)
 - [Configuration](#configuration)
 - [Rules](#rules)
@@ -137,6 +143,9 @@ examples/
     character_captcha.py      # Character CAPTCHA  (requires Pillow)
     sliding_captcha.py        # Sliding puzzle CAPTCHA  (requires Pillow)
     circle_captcha.py         # Click-the-incomplete-circle CAPTCHA  (requires Pillow)
+    image_captcha.py          # Image selection CAPTCHA  (requires Pillow)
+    image_grid_captcha.py     # Image grid CAPTCHA  (requires Pillow)
+    audio_captcha.py          # Audio CAPTCHA  (requires numpy, scipy)
     navigator_attestation.py  # Browser fingerprinting
     third_party_captcha.py    # Third-party CAPTCHA (pass provider as first arg)
 ```
@@ -151,7 +160,8 @@ pip install tollbooth[fastapi]   # FastAPI
 pip install tollbooth[falcon]    # Falcon
 pip install tollbooth[starlette] # Starlette
 pip install tollbooth[redis]     # Redis backend
-pip install tollbooth[image]     # Character / Sliding CAPTCHA (Pillow)
+pip install tollbooth[image]     # Character / Sliding / Image / Image Grid CAPTCHA (Pillow)
+pip install tollbooth[audio]     # Audio CAPTCHA (numpy, scipy)
 ```
 
 ## How it works
@@ -360,7 +370,10 @@ difficulty=10 (policy setting)
       ├── SHA256           offset  +6  →  effective 16   ~65 536 hashes  (no memory cost)
       ├── CharacterCaptcha offset  -4  →  effective  6   6-character solution
       ├── SlidingCaptcha   offset  -4  →  effective  6   sliding puzzle
-      └── CircleCaptcha    offset  -4  →  effective  6   click the incomplete circle
+      ├── CircleCaptcha    offset  -4  →  effective  6   click the incomplete circle
+      ├── ImageCaptcha     offset  -4  →  effective  6   pick matching image from 6
+      ├── ImageGridCaptcha offset  -4  →  effective  6   select matching images in 3×3 grid
+      └── AudioCaptcha     offset  -4  →  effective  6   type characters from audio
 ```
 
 | Type                    | Class                  | Offset | Solved by    | GPU-resistant |
@@ -370,6 +383,9 @@ difficulty=10 (policy setting)
 | `character-captcha`     | `CharacterCaptcha`     | -4     | human        | ✓             |
 | `sliding-captcha`       | `SlidingCaptcha`       | -4     | human        | ✓             |
 | `circle-captcha`        | `CircleCaptcha`        | -4     | human        | ✓             |
+| `image-captcha`         | `ImageCaptcha`         | -4     | human        | ✓             |
+| `image-grid-captcha`    | `ImageGridCaptcha`     | -4     | human        | ✓             |
+| `audio-captcha`         | `AudioCaptcha`         | -4     | human        | ✓             |
 | `navigator-attestation` | `NavigatorAttestation` | +0     | browser (WS) | ✓             |
 
 ### SHA256Balloon & SHA256
@@ -494,6 +510,76 @@ app = TollboothWSGI(
     app,
     secret="your-secret-key",
     challenge_handler=CircleCaptcha(
+        token_ttl=1800,
+    ),
+)
+```
+
+### Image CAPTCHA
+
+Human-solved image selection challenge. Shows a preview image at the top and 6 candidate images below — exactly one matches the preview. Images are downloaded from community datasets (pickle format) and distorted with grid overlays, noise, pixel shifting, and color adjustments scaled by difficulty. No JavaScript required. Requires `Pillow`:
+
+```bash
+pip install tollbooth[image]
+```
+
+#### Setup
+
+```python
+from tollbooth import ImageCaptcha, TollboothWSGI
+
+app = TollboothWSGI(
+    app,
+    secret="your-secret-key",
+    challenge_handler=ImageCaptcha(
+        dataset="ai_dogs",  # "ai_dogs", "animals", or "keys"
+        token_ttl=1800,
+    ),
+)
+```
+
+### Image Grid CAPTCHA
+
+Human-solved multi-select challenge. Displays a 3×3 grid of images and a text prompt naming a category. The user selects all images matching the category (typically 2–4). Images are distorted the same way as ImageCaptcha. No JavaScript required. Requires `Pillow`:
+
+```bash
+pip install tollbooth[image]
+```
+
+#### Setup
+
+```python
+from tollbooth import ImageGridCaptcha, TollboothWSGI
+
+app = TollboothWSGI(
+    app,
+    secret="your-secret-key",
+    challenge_handler=ImageGridCaptcha(
+        dataset="ai_dogs",  # "ai_dogs", "animals", or "keys"
+        token_ttl=1800,
+    ),
+)
+```
+
+### Audio CAPTCHA
+
+Human-solved audio challenge. Plays audio clips of individual characters concatenated with random silence gaps and background noise. The user types the characters they hear. Character count scales with difficulty (offset -4): difficulty 10 → 6 characters. Audio is distorted with background noise, random beeps, and speed variations scaled by difficulty. No JavaScript required. Requires `numpy` and `scipy`:
+
+```bash
+pip install tollbooth[audio]
+```
+
+#### Setup
+
+```python
+from tollbooth import AudioCaptcha, TollboothWSGI
+
+app = TollboothWSGI(
+    app,
+    secret="your-secret-key",
+    challenge_handler=AudioCaptcha(
+        dataset="characters",  # audio dataset name
+        lang="en",             # language for character audio
         token_ttl=1800,
     ),
 )
@@ -923,7 +1009,7 @@ Rules with `"blocklist": true` are silently skipped when no blocklist is loaded.
 
 ## Redis
 
-Share challenges, secret, config, rules, and rate-limit counters across workers via Redis (or Dragonfly, KeyDB, Valkey).
+Share challenges, secret, config, rules, rate-limit counters, and captcha datasets across workers via Redis (or Dragonfly, KeyDB, Valkey).
 
 ```
  worker 1        worker 2        worker 3
@@ -933,6 +1019,7 @@ Share challenges, secret, config, rules, and rate-limit counters across workers 
               ┌─────▼──────┐
               │   Redis    │
               │ challenges │
+              │  datasets  │
               │   secret   │
               │   config   │
               │ rate limits│
@@ -982,6 +1069,19 @@ Namespace multiple deployments on one Redis instance:
 ```python
 RedisEngine(client, secret="key", prefix="myapp")
 RedisEngine(client, secret="key", prefix="staging")
+```
+
+### Shared Datasets
+
+When using `RedisEngine`, image and audio captcha datasets are automatically stored in Redis instead of in-memory. This means datasets are downloaded once and shared across all workers, reducing memory usage per process. Random selection happens server-side via Lua scripts for atomicity.
+
+To use a Redis-backed dataset store without `RedisEngine`:
+
+```python
+from tollbooth.challenges.datasets import DatasetStore, set_default_store
+
+store = DatasetStore(redis_client=client, prefix="tollbooth")
+set_default_store(store)
 ```
 
 ## Third-party CAPTCHAs

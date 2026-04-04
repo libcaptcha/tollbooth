@@ -39,7 +39,11 @@ def _remote_addr(forwarded: str, fallback: str) -> str:
 
 
 def _parse_form(body: bytes) -> dict[str, str]:
-    return {k: v[0] for k, v in parse_qs(body.decode()).items()}
+    parsed = parse_qs(body.decode())
+    result = {}
+    for k, v in parsed.items():
+        result[k] = ",".join(v) if len(v) > 1 else v[0]
+    return result
 
 
 def _status_line(code: int) -> str:

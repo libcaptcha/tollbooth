@@ -6,6 +6,7 @@ import time
 from dataclasses import asdict, fields
 
 from .blocklist import BLOCKLIST_URL, _load_text, parse_blocklist
+from .challenges.datasets import DatasetStore, set_default_store
 from .engine import CHALLENGE_TTL, COOKIE_TTL, Challenge, Engine, Policy, Rule
 
 log = logging.getLogger("tollbooth.redis")
@@ -57,6 +58,8 @@ class RedisEngine(Engine):
         self.store = RedisStore(client, prefix, self.policy.challenge_ttl)
         self._rate_limiter = RedisRateLimiter(client, prefix)
         self._token_tracker = RedisTokenTracker(client, prefix, self.policy.cookie_ttl)
+
+        set_default_store(DatasetStore(client, prefix))
 
         self._listener = None
         if auto_sync:
