@@ -1,5 +1,6 @@
 from .audio_captcha import AudioCaptcha
 from .base import DIFFICULTY_OFFSETS, ChallengeBase, ChallengeHandler, ChallengeType
+from .cup_captcha import CupCaptcha
 from .character_captcha import CharacterCaptcha
 from .circle_captcha import CircleCaptcha
 from .image_captcha import ImageCaptcha
@@ -13,6 +14,7 @@ from .third_party_captcha import ThirdPartyCaptchaChallenge
 
 __all__ = [
     "AudioCaptcha",
+    "CupCaptcha",
     "ChallengeBase",
     "ChallengeHandler",
     "ChallengeType",

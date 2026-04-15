@@ -98,8 +98,10 @@ app = TollboothWSGI(app, secret="key", challenge_handler=CharacterCaptcha())
         - [Setup](#setup-5)
     - [Rotation CAPTCHA](#rotation-captcha)
         - [Setup](#setup-6)
-    - [Third-party CAPTCHA challenge](#third-party-captcha-challenge)
+    - [Cup CAPTCHA](#cup-captcha)
         - [Setup](#setup-7)
+    - [Third-party CAPTCHA challenge](#third-party-captcha-challenge)
+        - [Setup](#setup-8)
     - [Difficulty reference](#difficulty-reference)
 - [Configuration](#configuration)
 - [Rules](#rules)
@@ -152,6 +154,7 @@ examples/
     image_grid_captcha.py     # Image grid CAPTCHA  (requires Pillow)
     audio_captcha.py          # Audio CAPTCHA  (requires numpy, scipy)
     rotation_captcha.py       # 3D rotation CAPTCHA  (requires Pillow)
+    cup_captcha.py            # Cup icon CAPTCHA  (requires Pillow)
     navigator_attestation.py  # Browser fingerprinting
     third_party_captcha.py    # Third-party CAPTCHA (pass provider as first arg)
 ```
@@ -394,6 +397,7 @@ difficulty=10 (policy setting)
 | `image-grid-captcha`    | `ImageGridCaptcha`     | -4     | human        | ✓             |
 | `audio-captcha`         | `AudioCaptcha`         | -4     | human        | ✓             |
 | `rotation-captcha`      | `RotationCaptcha`      | -4     | human        | ✓             |
+| `cup-captcha`           | `CupCaptcha`           | -4     | human        | ✓             |
 | `navigator-attestation` | `NavigatorAttestation` | +0     | browser (WS) | ✓             |
 
 ### SHA256Balloon & SHA256
@@ -620,6 +624,31 @@ app = TollboothWSGI(
 #### Credits: Model
 
 [Low Poly Cat](https://skfb.ly/OqVx) by volkanongun — [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/)
+
+### Cup CAPTCHA
+
+Human-solved scene-selection challenge. Presents a reference image showing a target icon, and a sprite sheet of scenes (5–9 by default). Each scene contains four cups with varying fill levels, each labeled with a small icon above it. The user navigates through scenes and selects the one where the target icon appears above the fullest cup. The correct scene index is HMAC-encrypted in the challenge token. Requires `Pillow`:
+
+```bash
+pip install tollbooth[image]
+```
+
+#### Setup
+
+```python
+from tollbooth import CupCaptcha, TollboothWSGI
+
+app = TollboothWSGI(
+    app,
+    secret="your-secret-key",
+    challenge_handler=CupCaptcha(
+        min_scenes=5,    # minimum number of scenes shown
+        max_scenes=9,    # maximum number of scenes shown
+        image_size=200,  # pixel size of each scene image
+        token_ttl=1800,  # solution token lifetime in seconds
+    ),
+)
+```
 
 ### Third-party CAPTCHA challenge
 
